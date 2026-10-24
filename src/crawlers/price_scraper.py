@@ -50,12 +50,21 @@ class PriceScraper:
                 )
                 context = browser.new_context(
                     user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-                    viewport={"width": 1440, "height": 900}
+                    viewport={"width": 1440, "height": 900},
+                    locale="vi-VN"
                 )
                 page = context.new_page()
 
-                # Chặn image/font/media thừa để tải nhanh và tiết kiệm RAM Cloud
-                page.route("**/*", lambda route: route.abort() if route.request.resource_type in ["image", "media", "font"] else route.continue_())
+                # Vượt cơ chế kiểm tra bot của Lazada (Ẩn webdriver & giả lập plugin)
+                page.add_init_script("""
+                    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+                    window.chrome = { runtime: {} };
+                    Object.defineProperty(navigator, 'languages', { get: () => ['vi-VN', 'vi', 'en-US', 'en'] });
+                    Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+                """)
+
+                # Chỉ chặn media/font nặng, không can thiệp xhr/fetch/scripts
+                page.route("**/*", lambda route: route.abort() if route.request.resource_type in ["media", "font"] else route.continue_())
 
                 print(f"[SCRAPER] Đang tải trang: {url} ...")
                 # Đợi networkidle để tránh lỗi "Execution context was destroyed" khi Lazada redirect URL
