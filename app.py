@@ -284,29 +284,84 @@ with col_m4:
 
 st.write("")
 
-# 7. Form Thêm Sản Phẩm Mới (Minimalist Expandable Card)
-with st.expander("➕ **Thêm sản phẩm mới cần theo dõi**", expanded=(total_products == 0)):
-    with st.form("add_product_form", clear_on_submit=True):
-        f_url = st.text_input("Đường link sản phẩm (Lazada / Tmall / Taobao):", placeholder="https://www.lazada.vn/products/...")
-        col_f1, col_f2 = st.columns([2, 1])
-        with col_f1:
-            f_target_price = st.number_input("Giá đáy mong muốn (VNĐ):", min_value=1000, value=150000, step=10000, format="%d")
-        with col_f2:
-            st.write("")
-            f_check_now = st.checkbox("Quét giá ngay khi thêm", value=True)
+# 7. Form Thêm Sản Phẩm & Xem Trước Phân Loại (SaaS Inspo Card)
+with st.expander("➕ **Thêm sản phẩm mới & Xem trước phân loại**", expanded=(total_products == 0)):
+    if "preview_data" not in st.session_state:
+        st.session_state.preview_data = None
 
-        btn_submit = st.form_submit_button("Lưu sản phẩm", type="primary", use_container_width=True)
-        if btn_submit:
-            if not f_url or not f_url.startswith("http"):
-                st.error("Vui lòng nhập đường link URL hợp lệ!")
+    # Hàng nhập link + Nút Kiểm tra (Preview 🔍)
+    c_url, c_btn = st.columns([5, 1])
+    with c_url:
+        preview_url = st.text_input(
+            "Đường link sản phẩm (Lazada / Tmall / Taobao):",
+            placeholder="https://www.lazada.vn/products/...",
+            key="input_product_url",
+            label_visibility="collapsed"
+        )
+    with c_btn:
+        btn_preview = st.button("🔍 Kiểm tra", type="primary", use_container_width=True, help="Tải nhanh tiêu đề, giá và danh sách phân loại của sản phẩm")
+
+    if btn_preview:
+        if not preview_url or not preview_url.startswith("http"):
+            st.error("Vui lòng nhập đường link URL hợp lệ!")
+        else:
+            with st.spinner("Đang kết nối và tải thông tin sản phẩm..."):
+                scraped = monitor.scraper.scrape_product_info(preview_url.strip())
+                if scraped.get("success") or scraped.get("title"):
+                    st.session_state.preview_data = {
+                        "url": preview_url.strip(),
+                        "title": scraped.get("title", ""),
+                        "price": scraped.get("price", 0.0),
+                        "variants": scraped.get("variants", [])
+                    }
+                    st.success("Đã tìm thấy thông tin sản phẩm!")
+                else:
+                    st.error(f"Không thể lấy thông tin sản phẩm. Lỗi: {scraped.get('error')}")
+
+    # Nếu đã có thông tin Preview, hiển thị form chọn phân loại và đặt giá đáy
+    p_info = st.session_state.preview_data
+    if p_info:
+        st.markdown("<hr style='margin: 0.8rem 0; border: none; border-top: 1px dashed #e5e7eb;'/>", unsafe_allow_html=True)
+        
+        # Tiêu đề tự động điền
+        st.text_input("📦 Tên sản phẩm:", value=p_info["title"], disabled=True)
+        
+        col_v1, col_v2 = st.columns([2, 1])
+        with col_v1:
+            if p_info["variants"]:
+                selected_variant = st.selectbox(
+                    "🎨 Chọn phân loại cần theo dõi:",
+                    options=p_info["variants"],
+                    help="Chọn đúng kích cỡ, màu sắc hoặc quy cách sản phẩm"
+                )
             else:
-                prod_id = db.add_product(url=f_url.strip(), target_price=float(f_target_price))
-                st.success(f"Đã thêm sản phẩm thành công (ID: #{prod_id})!")
-                if f_check_now:
-                    with st.spinner("Đang mở trình duyệt lấy giá và tiêu đề sản phẩm lần đầu..."):
-                        p_data = db.get_product_by_id(prod_id)
-                        monitor.check_single_product(p_data)
-                st.rerun()
+                selected_variant = ""
+                st.caption("ℹ️ Sản phẩm này là bản tiêu chuẩn (không có nhiều phân loại SKU).")
+
+        with col_v2:
+            suggested_target = int(p_info["price"] * 0.9) if p_info["price"] > 0 else 100000
+            target_price_input = st.number_input(
+                f"🎯 Giá đáy mong muốn (Giá hiện tại: {int(p_info['price']):,}đ):",
+                min_value=1000,
+                value=suggested_target,
+                step=10000,
+                format="%d"
+            )
+
+        if st.button("💾 Lưu theo dõi sản phẩm", type="primary", use_container_width=True):
+            final_title = p_info["title"]
+            if selected_variant:
+                final_title += f" ({selected_variant})"
+            prod_id = db.add_product(
+                url=p_info["url"],
+                target_price=float(target_price_input),
+                title=final_title,
+                current_price=p_info["price"],
+                variant_name=selected_variant
+            )
+            st.success(f"Đã lưu theo dõi thành công (ID: #{prod_id})!")
+            st.session_state.preview_data = None
+            st.rerun()
 
 # 8. Bảng danh sách sản phẩm
 col_tbl1, col_tbl2 = st.columns([3, 1])
@@ -350,6 +405,7 @@ else:
         table_data.append({
             "ID": p["id"],
             "Sản phẩm": p["title"] or "Chưa cập nhật",
+            "Phân loại": p.get("variant_name") or "Mặc định",
             "Giá hiện tại": curr_str,
             "Giá đáy (Target)": targ_str,
             "Chênh lệch": diff_str,
@@ -366,6 +422,7 @@ else:
         column_config={
             "URL": st.column_config.LinkColumn("Link mua hàng", display_text="Truy cập"),
             "Sản phẩm": st.column_config.TextColumn(width="medium"),
+            "Phân loại": st.column_config.TextColumn(width="small"),
             "Trạng thái": st.column_config.TextColumn(width="small"),
             "Chênh lệch": st.column_config.TextColumn(width="small"),
         },

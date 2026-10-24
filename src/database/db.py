@@ -18,6 +18,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             url TEXT UNIQUE NOT NULL,
             title TEXT,
+            variant_name TEXT DEFAULT '',
             current_price REAL DEFAULT 0,
             target_price REAL NOT NULL,
             lowest_price REAL DEFAULT 0,
@@ -26,21 +27,28 @@ def init_db():
             created_at TEXT
         )
     """)
+    # Migration an toàn: Tự động bổ sung cột variant_name nếu database cũ chưa có
+    try:
+        cursor.execute("ALTER TABLE products ADD COLUMN variant_name TEXT DEFAULT ''")
+    except Exception:
+        pass  # Cột đã tồn tại, bỏ qua an toàn
     conn.commit()
     conn.close()
 
-def add_product(url: str, target_price: float, title: str = "", current_price: float = 0.0) -> int:
+def add_product(url: str, target_price: float, title: str = "", current_price: float = 0.0, variant_name: str = "") -> int:
     conn = get_connection()
     cursor = conn.cursor()
     now_str = datetime.now(VN_TZ).strftime("%Y-%m-%d %H:%M:%S")
     lowest_price = current_price if current_price > 0 else target_price
     cursor.execute("""
-        INSERT INTO products (url, title, current_price, target_price, lowest_price, status, last_checked, created_at)
-        VALUES (?, ?, ?, ?, ?, 'Đang theo dõi', ?, ?)
+        INSERT INTO products (url, title, variant_name, current_price, target_price, lowest_price, status, last_checked, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, 'Đang theo dõi', ?, ?)
         ON CONFLICT(url) DO UPDATE SET
+            title = excluded.title,
+            variant_name = excluded.variant_name,
             target_price = excluded.target_price,
             status = 'Đang theo dõi'
-    """, (url, title, current_price, target_price, lowest_price, now_str, now_str))
+    """, (url, title, variant_name, current_price, target_price, lowest_price, now_str, now_str))
     product_id = cursor.lastrowid
     conn.commit()
     conn.close()

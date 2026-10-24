@@ -32,6 +32,7 @@ class PriceScraper:
         result = {
             "title": "",
             "price": 0.0,
+            "variants": [],
             "success": False,
             "error": None
         }
@@ -113,8 +114,26 @@ class PriceScraper:
                         clean = m[0].replace(".", "").replace(",", "")
                         price_val = float(clean)
 
+                # 3. Trích xuất danh sách phân loại (SKUs / Variants)
+                variants = []
+                try:
+                    sku_elements = page.query_selector_all(
+                        ".sku-variable-size, .sku-prop-content, .sku-name, [class*='sku-variable'], [class*='skuProp'], .sku-item"
+                    )
+                    seen_sku = set()
+                    for el in sku_elements:
+                        v_name = el.inner_text().strip()
+                        # Lấy dòng đầu tiên nếu có nhiều dòng
+                        v_name = v_name.split("\n")[0].strip()
+                        if v_name and len(v_name) < 50 and v_name not in seen_sku and not v_name.startswith("₫"):
+                            seen_sku.add(v_name)
+                            variants.append(v_name)
+                except Exception:
+                    pass
+
                 result["title"] = title if title else "Sản phẩm Lazada/Tmall"
                 result["price"] = price_val
+                result["variants"] = variants
                 result["success"] = (price_val > 0)
                 browser.close()
 
