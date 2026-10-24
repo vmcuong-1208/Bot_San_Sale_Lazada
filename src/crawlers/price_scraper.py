@@ -58,8 +58,12 @@ class PriceScraper:
                 page.route("**/*", lambda route: route.abort() if route.request.resource_type in ["image", "media", "font"] else route.continue_())
 
                 print(f"[SCRAPER] Đang tải trang: {url} ...")
-                page.goto(url, wait_until="domcontentloaded", timeout=40000)
-                time.sleep(2)
+                # Đợi networkidle để tránh lỗi "Execution context was destroyed" khi Lazada redirect URL
+                try:
+                    page.goto(url, wait_until="networkidle", timeout=30000)
+                except Exception:
+                    page.goto(url, wait_until="load", timeout=30000)
+                time.sleep(1)
 
                 # 1. Trích xuất Title
                 title = ""

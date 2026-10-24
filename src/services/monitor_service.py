@@ -1,3 +1,4 @@
+import time
 from datetime import datetime, timezone, timedelta
 import threading
 from typing import Dict, List
@@ -132,7 +133,6 @@ class PriceMonitorService:
         self.log(f"Hoàn thành chu trình quét lúc {self.last_run_time}.")
 
     def _loop(self):
-        import time
         while self.is_running:
             self.scan_all_products()
             for _ in range(self.interval_seconds):
