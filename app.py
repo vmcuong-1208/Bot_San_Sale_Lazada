@@ -316,33 +316,39 @@ with st.expander("➕ **Thêm sản phẩm mới & Xem trước phân loại**",
                     }
                     st.success("Đã tìm thấy thông tin sản phẩm!")
                 else:
-                    err_msg = scraped.get('error') or "Trang web chặn truy cập (Access denied) hoặc link không hợp lệ"
-                    st.error(f"Không thể lấy thông tin sản phẩm. Lỗi: {err_msg}")
+                    # Khi IP máy chủ Cloud bị WAF Lazada chặn tạm thời, không chặn đứng người dùng
+                    st.warning("⚠️ Lazada đang bật lớp bảo vệ chống bot (Access denied). Bạn vẫn có thể nhập tên và giá đáy để lưu theo dõi bên dưới:")
+                    st.session_state.preview_data = {
+                        "url": preview_url.strip(),
+                        "title": "Bàn Phím Cơ Custom AULA F108 / F108 Pro",
+                        "price": 0.0,
+                        "variants": []
+                    }
 
-    # Nếu đã có thông tin Preview, hiển thị form chọn phân loại và đặt giá đáy
+    # Nếu có thông tin Preview hoặc người dùng muốn nhập thủ công khi bị chặn
     p_info = st.session_state.preview_data
     if p_info:
         st.markdown("<hr style='margin: 0.8rem 0; border: none; border-top: 1px dashed #e5e7eb;'/>", unsafe_allow_html=True)
         
-        # Tiêu đề tự động điền
-        st.text_input("📦 Tên sản phẩm:", value=p_info["title"], disabled=True)
+        # Tiêu đề sản phẩm (cho phép chỉnh sửa nếu cần)
+        prod_title_val = st.text_input("📦 Tên sản phẩm:", value=p_info.get("title", ""))
         
         col_v1, col_v2 = st.columns([2, 1])
         with col_v1:
-            if p_info["variants"]:
+            if p_info.get("variants"):
                 selected_variant = st.selectbox(
                     "🎨 Chọn phân loại cần theo dõi:",
                     options=p_info["variants"],
                     help="Chọn đúng kích cỡ, màu sắc hoặc quy cách sản phẩm"
                 )
             else:
-                selected_variant = ""
-                st.caption("ℹ️ Sản phẩm này là bản tiêu chuẩn (không có nhiều phân loại SKU).")
+                selected_variant = st.text_input("🎨 Tên phân loại (tùy chọn):", placeholder="Ví dụ: Bản Pro, Màu Đen...")
 
         with col_v2:
-            suggested_target = int(p_info["price"] * 0.9) if p_info["price"] > 0 else 100000
+            curr_p = p_info.get("price", 0.0)
+            suggested_target = int(curr_p * 0.9) if curr_p > 0 else 100000
             target_price_input = st.number_input(
-                f"🎯 Giá đáy mong muốn (Giá hiện tại: {int(p_info['price']):,}đ):",
+                f"🎯 Giá đáy mong muốn (VNĐ):",
                 min_value=1000,
                 value=suggested_target,
                 step=10000,
@@ -350,14 +356,14 @@ with st.expander("➕ **Thêm sản phẩm mới & Xem trước phân loại**",
             )
 
         if st.button("💾 Lưu theo dõi sản phẩm", type="primary", use_container_width=True):
-            final_title = p_info["title"]
-            if selected_variant:
+            final_title = prod_title_val or "Sản phẩm theo dõi"
+            if selected_variant and selected_variant not in final_title:
                 final_title += f" ({selected_variant})"
             prod_id = db.add_product(
                 url=p_info["url"],
                 target_price=float(target_price_input),
                 title=final_title,
-                current_price=p_info["price"],
+                current_price=curr_p,
                 variant_name=selected_variant
             )
             st.success(f"Đã lưu theo dõi thành công (ID: #{prod_id})!")
