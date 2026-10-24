@@ -35,6 +35,10 @@ class PriceScraper:
                         real_url = html[p1:p2 + 5]
                         print(f"[SCRAPER] Đã chuyển đổi shortlink s.lazada sang link gốc: {real_url}")
                         return real_url
+                # Nếu không tìm thấy bằng .find, tìm bằng regex canonical link
+                m_can = re.search(r'<link\s+rel=[\'"]origin[\'"]\s+href=[\'"]([^\'"]+)[\'"]', html)
+                if m_can:
+                    return m_can.group(1).split("?")[0]
             except Exception as e:
                 print(f"[WARN] Lỗi resolve shortlink: {e}")
         return url

@@ -307,7 +307,7 @@ with st.expander("➕ **Thêm sản phẩm mới & Xem trước phân loại**",
         else:
             with st.spinner("Đang kết nối và tải thông tin sản phẩm..."):
                 scraped = monitor.scraper.scrape_product_info(preview_url.strip())
-                if scraped.get("success") or scraped.get("title"):
+                if scraped.get("success") and scraped.get("title") and scraped.get("title") != "Access denied":
                     st.session_state.preview_data = {
                         "url": preview_url.strip(),
                         "title": scraped.get("title", ""),
@@ -316,7 +316,8 @@ with st.expander("➕ **Thêm sản phẩm mới & Xem trước phân loại**",
                     }
                     st.success("Đã tìm thấy thông tin sản phẩm!")
                 else:
-                    st.error(f"Không thể lấy thông tin sản phẩm. Lỗi: {scraped.get('error')}")
+                    err_msg = scraped.get('error') or "Trang web chặn truy cập (Access denied) hoặc link không hợp lệ"
+                    st.error(f"Không thể lấy thông tin sản phẩm. Lỗi: {err_msg}")
 
     # Nếu đã có thông tin Preview, hiển thị form chọn phân loại và đặt giá đáy
     p_info = st.session_state.preview_data
