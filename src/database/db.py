@@ -91,3 +91,13 @@ def delete_product(product_id: int):
     conn.commit()
     conn.close()
 
+def delete_invalid_products() -> int:
+    """Xóa tất cả các sản phẩm có trạng thái lỗi link hoặc lỗi cào giá."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM products WHERE status LIKE '%Lỗi%'")
+    deleted_count = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return deleted_count
+

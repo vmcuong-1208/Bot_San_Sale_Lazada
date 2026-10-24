@@ -217,6 +217,9 @@ with st.sidebar:
     st.markdown(f"<div style='margin-top: 0.5rem;'><b>Trạng thái:</b> {task_status_badge}</div>", unsafe_allow_html=True)
     st.caption(f"Lần quét gần nhất: {monitor.last_run_time}")
 
+    # Chức năng tự động xóa sản phẩm lỗi khi quét
+    monitor.auto_delete_invalid = st.toggle("🗑️ Tự động xóa nếu link lỗi", value=monitor.auto_delete_invalid, help="Tự động loại bỏ sản phẩm khỏi hệ thống nếu không còn tồn tại hoặc lỗi lấy giá")
+
     st.markdown("<hr style='margin: 1.2rem 0; border: none; border-top: 1px solid #f1f3f5;'/>", unsafe_allow_html=True)
     with st.expander("📜 **Nhật ký hệ thống (Logs)**", expanded=False):
         if monitor.scan_logs:
@@ -306,7 +309,15 @@ with st.expander("➕ **Thêm sản phẩm mới cần theo dõi**", expanded=(t
                 st.rerun()
 
 # 8. Bảng danh sách sản phẩm
-st.markdown("### 📋 **Danh Sách Sản Phẩm Theo Dõi**")
+col_tbl1, col_tbl2 = st.columns([3, 1])
+with col_tbl1:
+    st.markdown("### 📋 **Danh Sách Sản Phẩm Theo Dõi**")
+with col_tbl2:
+    if products and any("Lỗi" in (p.get("status") or "") for p in products):
+        if st.button("🧹 Dọn sạch sản phẩm lỗi", type="secondary", use_container_width=True, help="Xóa ngay tất cả sản phẩm bị lỗi link hoặc không thể cào giá"):
+            deleted = db.delete_invalid_products()
+            st.success(f"Đã xóa {deleted} sản phẩm lỗi!")
+            st.rerun()
 
 if not products:
     st.info("Chưa có sản phẩm nào. Hãy bấm **Thêm sản phẩm mới** ở trên để bắt đầu theo dõi.")

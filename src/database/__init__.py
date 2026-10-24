@@ -6,6 +6,7 @@ from src.database.db import (
     update_product_price,
     update_target_price,
     delete_product,
+    delete_invalid_products,
 )
 
 __all__ = [
@@ -16,5 +17,6 @@ __all__ = [
     "update_product_price",
     "update_target_price",
     "delete_product",
+    "delete_invalid_products",
 ]
 

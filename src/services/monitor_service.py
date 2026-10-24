@@ -7,8 +7,9 @@ from src.notifications.telegram import TelegramNotifier
 from src.config.settings import PRICE_DIFF_ALERT_THRESHOLD, SCAN_INTERVAL_SECONDS
 
 class PriceMonitorService:
-    def __init__(self, interval_seconds: int = SCAN_INTERVAL_SECONDS):
+    def __init__(self, interval_seconds: int = SCAN_INTERVAL_SECONDS, auto_delete_invalid: bool = False):
         self.interval_seconds = interval_seconds
+        self.auto_delete_invalid = auto_delete_invalid
         self.scraper = PriceScraper(headless=True)
         self.notifier = TelegramNotifier()
         self.is_running = False
@@ -44,6 +45,11 @@ class PriceMonitorService:
 
         if not scrape_res.get("success"):
             self.log(f"⚠️ Không lấy được giá mới cho #{product_id}. Lỗi: {scrape_res.get('error')}")
+            if self.auto_delete_invalid:
+                db.delete_product(product_id)
+                self.log(f"🗑️ [Tự động xóa] Đã xóa sản phẩm #{product_id} do lỗi link/không tồn tại.")
+                return {"status": "deleted", "message": "Đã tự động xóa do lỗi link"}
+
             db.update_product_price(
                 product_id, 
                 title=scrape_res.get("title") or title,
