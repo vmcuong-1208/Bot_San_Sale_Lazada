@@ -1,0 +1,31 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C/C++ build artifacts
+*.so
+
+# Environment files (Chứa Secret Token không đẩy lên git)
+.env
+.env.local
+.env.*.local
+
+# Database SQLite
+data/*.db
+*.db
+*.sqlite3
+
+# Playwright artifacts & screenshots
+test-results/
+playwright-report/
+*.png
+
+# Streamlit local settings
+.streamlit/secrets.toml
+
+# IDE files
+.vscode/
+.idea/
+.history/
+
