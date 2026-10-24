@@ -1,0 +1,21 @@
+---
+description: Inspo UI/UX inspiration guidelines (Nutlope/inspo)
+globs: *
+alwaysApply: false
+---
+# Inspo UI Design Mode (Nutlope/inspo)
+
+Khi người dùng yêu cầu thiết kế giao diện, cải thiện UI/UX, thêm component hoặc nhắc đến từ khoá `inspo`, hãy tham chiếu kho thiết kế thực tế từ **Inspo** (`https://inspomcp.dev/api/mcp`):
+
+1. **Tránh UI mặc định (AI generic cliches):**
+   - Không lạm dụng nền tím neon, gradient tối nhàm chán hoặc template lặp đi lặp lại.
+   - Ưu tiên cấu trúc thiết kế thực tế từ các website sản phẩm hàng đầu: palette màu hài hoà, typography phân cấp rõ ràng, spacing scale chuẩn mực.
+
+2. **Các công cụ chính từ Inspo MCP:**
+   - `recommend(brief)`: Nhận vào mô tả sản phẩm (ví dụ: "E-commerce price tracking dashboard with modern minimal style") để nhận gợi ý palette, typography, layout và reference component.
+   - `search_inspiration(query)`: Tìm kiếm các thành phần UI thực tế (ví dụ: "pricing table", "metric cards", "deal banner").
+   - `find_similar(url)`: Tìm các trang web có phong cách tương đồng.
+
+3. **Nguyên tắc tích hợp:**
+   - Kết hợp chặt chẽ với triết lý **Ponytail**: UI đẹp, hiện đại nhưng code phải tinh gọn, không cài thư viện UI nặng nề không cần thiết.
+

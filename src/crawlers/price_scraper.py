@@ -2,6 +2,7 @@ import re
 import time
 from typing import Dict, Optional
 from playwright.sync_api import sync_playwright
+from src.crawlers.browser_setup import ensure_playwright_browsers
 
 class PriceScraper:
     def __init__(self, headless: bool = True):
@@ -23,7 +24,11 @@ class PriceScraper:
     def scrape_product_info(self, url: str) -> Dict:
         """
         Cào thông tin tiêu đề và giá hiện tại của sản phẩm từ URL (Lazada / Tmall / Taobao).
+        Đảm bảo an toàn không crash background task khi gặp network timeout hoặc lỗi Cloud.
         """
+        # Đảm bảo browser đã sẵn sàng (chạy 1 lần trên Cloud)
+        ensure_playwright_browsers()
+
         result = {
             "title": "",
             "price": 0.0,
@@ -31,13 +36,15 @@ class PriceScraper:
             "error": None
         }
 
-        with sync_playwright() as p:
-            try:
+        try:
+            with sync_playwright() as p:
                 browser = p.chromium.launch(
                     headless=self.headless,
                     args=[
                         "--no-sandbox",
                         "--disable-setuid-sandbox",
+                        "--disable-dev-shm-usage",
+                        "--disable-gpu",
                         "--disable-blink-features=AutomationControlled"
                     ]
                 )
@@ -47,7 +54,7 @@ class PriceScraper:
                 )
                 page = context.new_page()
 
-                # Chặn image/font thừa để tăng tốc tải trang
+                # Chặn image/font/media thừa để tải nhanh và tiết kiệm RAM Cloud
                 page.route("**/*", lambda route: route.abort() if route.request.resource_type in ["image", "media", "font"] else route.continue_())
 
                 print(f"[SCRAPER] Đang tải trang: {url} ...")
@@ -79,9 +86,9 @@ class PriceScraper:
                     els = page.query_selector_all(sel)
                     for el in els:
                         txt = el.inner_text()
-                        p = self._extract_price_from_text(txt)
-                        if p and p > 100:
-                            price_val = p
+                        p_extracted = self._extract_price_from_text(txt)
+                        if p_extracted and p_extracted > 100:
+                            price_val = p_extracted
                             break
                     if price_val > 0:
                         break
@@ -98,9 +105,8 @@ class PriceScraper:
                 result["success"] = (price_val > 0)
                 browser.close()
 
-            except Exception as e:
-                result["error"] = str(e)
-                print(f"[SCRAPER ERROR] {e}")
+        except Exception as e:
+            result["error"] = str(e)
+            print(f"[SCRAPER ERROR] {e}")
 
         return result
-
