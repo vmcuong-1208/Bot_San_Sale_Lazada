@@ -1,7 +1,9 @@
 import sqlite3
 from typing import List, Dict, Optional
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from src.config.settings import DB_PATH
+
+VN_TZ = timezone(timedelta(hours=7))
 
 def get_connection():
     conn = sqlite3.connect(DB_PATH)
@@ -30,7 +32,7 @@ def init_db():
 def add_product(url: str, target_price: float, title: str = "", current_price: float = 0.0) -> int:
     conn = get_connection()
     cursor = conn.cursor()
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now_str = datetime.now(VN_TZ).strftime("%Y-%m-%d %H:%M:%S")
     lowest_price = current_price if current_price > 0 else target_price
     cursor.execute("""
         INSERT INTO products (url, title, current_price, target_price, lowest_price, status, last_checked, created_at)
@@ -64,7 +66,7 @@ def get_product_by_id(product_id: int) -> Optional[Dict]:
 def update_product_price(product_id: int, title: str, current_price: float, lowest_price: float, status: str):
     conn = get_connection()
     cursor = conn.cursor()
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now_str = datetime.now(VN_TZ).strftime("%Y-%m-%d %H:%M:%S")
     cursor.execute("""
         UPDATE products
         SET title = COALESCE(NULLIF(?, ''), title),

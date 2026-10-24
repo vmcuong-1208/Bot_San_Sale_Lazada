@@ -1,10 +1,17 @@
-import time
+from datetime import datetime, timezone, timedelta
 import threading
 from typing import Dict, List
 import src.database as db
 from src.crawlers.price_scraper import PriceScraper
 from src.notifications.telegram import TelegramNotifier
 from src.config.settings import PRICE_DIFF_ALERT_THRESHOLD, SCAN_INTERVAL_SECONDS
+
+# Múi giờ Việt Nam (UTC+7)
+VN_TZ = timezone(timedelta(hours=7))
+
+def get_vn_time_str(fmt: str = "%H:%M:%S") -> str:
+    """Lấy thời gian chuẩn theo múi giờ Việt Nam UTC+7 cho cả Local và Cloud."""
+    return datetime.now(VN_TZ).strftime(fmt)
 
 class PriceMonitorService:
     def __init__(self, interval_seconds: int = SCAN_INTERVAL_SECONDS, auto_delete_invalid: bool = False):
@@ -18,7 +25,7 @@ class PriceMonitorService:
         self.scan_logs: List[str] = []
 
     def log(self, message: str):
-        timestamp = time.strftime("%H:%M:%S")
+        timestamp = get_vn_time_str("%H:%M:%S")
         entry = f"[{timestamp}] {message}"
         print(entry)
         self.scan_logs.append(entry)
@@ -121,10 +128,11 @@ class PriceMonitorService:
                 self.log(f"Lỗi khi xử lý sản phẩm #{p['id']}: {e}")
             time.sleep(2)
 
-        self.last_run_time = time.strftime("%Y-%m-%d %H:%M:%S")
+        self.last_run_time = get_vn_time_str("%Y-%m-%d %H:%M:%S")
         self.log(f"Hoàn thành chu trình quét lúc {self.last_run_time}.")
 
     def _loop(self):
+        import time
         while self.is_running:
             self.scan_all_products()
             for _ in range(self.interval_seconds):
