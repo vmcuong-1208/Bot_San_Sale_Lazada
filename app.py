@@ -177,7 +177,7 @@ with st.sidebar:
     if is_tg_ok:
         st.markdown('<span class="badge badge-success">● Telegram Connected</span>', unsafe_allow_html=True)
         st.caption("Đang kết nối: `@SaleLaz_bot`")
-        if st.button("🧪 Bắn tin kiểm tra", use_container_width=True, kind="secondary"):
+        if st.button("🧪 Bắn tin kiểm tra", use_container_width=True, type="secondary"):
             res = notifier.test_connection()
             if res.get("ok"):
                 notifier.send_message("⚡ <b>[System Check]</b>: Kết nối thành công tới Telegram Bot!")
@@ -194,16 +194,16 @@ with st.sidebar:
     col_s1, col_s2 = st.columns(2)
     with col_s1:
         if not monitor.is_running:
-            if st.button("▶️ Bắt đầu", use_container_width=True, kind="primary"):
+            if st.button("▶️ Bắt đầu", use_container_width=True, type="primary"):
                 monitor.start_background_loop()
                 st.rerun()
         else:
-            if st.button("⏹️ Tạm dừng", use_container_width=True, kind="secondary"):
+            if st.button("⏹️ Tạm dừng", use_container_width=True, type="secondary"):
                 monitor.stop_background_loop()
                 st.rerun()
 
     with col_s2:
-        if st.button("🚀 Quét ngay", use_container_width=True, kind="secondary"):
+        if st.button("🚀 Quét ngay", use_container_width=True, type="secondary"):
             with st.spinner("Đang quét giá toàn bộ..."):
                 monitor.scan_all_products()
             st.success("Quét hoàn tất!")
@@ -375,7 +375,7 @@ else:
         current_prod = db.get_product_by_id(selected_id)
         current_target = int(current_prod["target_price"]) if current_prod else 100000
         new_target = st.number_input("Cập nhật lại Giá đáy (VNĐ):", min_value=1000, step=10000, value=current_target)
-        if st.button("💾 Cập nhật giá", use_container_width=True, kind="secondary"):
+        if st.button("💾 Cập nhật giá", use_container_width=True, type="secondary"):
             db.update_target_price(selected_id, float(new_target))
             st.success("Đã cập nhật giá đáy thành công!")
             st.rerun()
@@ -385,14 +385,14 @@ else:
         st.write("")
         col_btn1, col_btn2 = st.columns(2)
         with col_btn1:
-            if st.button("🔍 Quét lại", use_container_width=True, kind="primary"):
+            if st.button("🔍 Quét lại", use_container_width=True, type="primary"):
                 with st.spinner("Đang lấy giá mới..."):
                     p_data = db.get_product_by_id(selected_id)
                     res = monitor.check_single_product(p_data)
                 st.success("Đã cập nhật!")
                 st.rerun()
         with col_btn2:
-            if st.button("🗑️ Xoá", use_container_width=True, kind="secondary"):
+            if st.button("🗑️ Xoá", use_container_width=True, type="secondary"):
                 db.delete_product(selected_id)
                 st.warning("Đã xoá khỏi danh sách!")
                 st.rerun()
