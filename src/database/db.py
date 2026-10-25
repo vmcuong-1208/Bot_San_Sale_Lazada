@@ -130,7 +130,7 @@ def get_product_by_id(product_id: int) -> Optional[Dict]:
         conn.close()
         return dict(row) if row else None
 
-def update_product_price(product_id: int, title: str, current_price: float, lowest_price: float, status: str):
+def update_product_price(product_id: int, title: str, current_price: float, lowest_price: float, status: str, variant_name: str = ""):
     now_str = datetime.now(VN_TZ).strftime("%Y-%m-%d %H:%M:%S")
     if is_using_supabase():
         payload = {
@@ -141,6 +141,8 @@ def update_product_price(product_id: int, title: str, current_price: float, lowe
         }
         if title:
             payload["title"] = title
+        if variant_name:
+            payload["variant_name"] = variant_name
         _supabase_client.table("products").update(payload).eq("id", product_id).execute()
     else:
         conn = _get_sqlite_conn()
@@ -148,12 +150,13 @@ def update_product_price(product_id: int, title: str, current_price: float, lowe
         cursor.execute("""
             UPDATE products
             SET title = COALESCE(NULLIF(?, ''), title),
+                variant_name = CASE WHEN ? != '' THEN ? ELSE variant_name END,
                 current_price = ?,
                 lowest_price = ?,
                 status = ?,
                 last_checked = ?
             WHERE id = ?
-        """, (title, current_price, lowest_price, status, now_str, product_id))
+        """, (title, variant_name, variant_name, current_price, lowest_price, status, now_str, product_id))
         conn.commit()
         conn.close()
 

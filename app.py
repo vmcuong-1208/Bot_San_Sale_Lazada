@@ -313,13 +313,18 @@ with st.expander("➕ **Thêm sản phẩm mới cần theo dõi**", expanded=(t
             "🔗 Link sản phẩm (Lazada / Tmall / Taobao):",
             placeholder="https://s.lazada.vn/... hoặc https://www.lazada.vn/products/..."
         )
-        col_f1, col_f2 = st.columns([2, 1])
+        col_f1, col_f2, col_f3 = st.columns([2, 1, 1])
         with col_f1:
             f_title = st.text_input(
                 "📦 Ghi chú tên sản phẩm (tùy chọn):",
                 placeholder="Để trống Worker sẽ tự lấy tên thật trên sàn..."
             )
         with col_f2:
+            f_variant = st.text_input(
+                "🎨 Phân loại cần săn (tùy chọn):",
+                placeholder="Ví dụ: Màu Đen, Size L..."
+            )
+        with col_f3:
             f_target = st.number_input(
                 "🎯 Giá đáy mong muốn (VNĐ):",
                 min_value=1000,
@@ -339,7 +344,7 @@ with st.expander("➕ **Thêm sản phẩm mới cần theo dõi**", expanded=(t
                     target_price=float(f_target),
                     title=final_title,
                     current_price=0.0,
-                    variant_name=""
+                    variant_name=f_variant.strip()
                 )
                 st.success(f"🎉 Đã lưu sản phẩm thành công vào Supabase (ID: #{prod_id})!")
                 st.rerun()

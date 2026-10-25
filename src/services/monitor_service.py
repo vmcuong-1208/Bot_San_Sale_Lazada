@@ -100,12 +100,19 @@ class PriceMonitorService:
                 status_text = f"Giá cao (+{int(diff):,}đ)"
                 self.log(f"ℹ️ SẢN PHẨM #{product_id}: Chênh {diff:,.0f}đ > {PRICE_DIFF_ALERT_THRESHOLD:,.0f}đ. Bỏ qua.")
 
+        # Cập nhật phân loại: nếu người dùng chưa chọn phân loại cụ thể và sản phẩm có phân loại
+        detected_variant = product.get("variant_name") or ""
+        if not detected_variant and scrape_res.get("variants"):
+            # Ghép tóm tắt các phân loại phát hiện được
+            detected_variant = ", ".join(scrape_res["variants"][:3])
+
         db.update_product_price(
             product_id=product_id,
             title=new_title,
             current_price=current_price,
             lowest_price=new_lowest,
-            status=status_text
+            status=status_text,
+            variant_name=detected_variant
         )
         return {
             "status": "success",
