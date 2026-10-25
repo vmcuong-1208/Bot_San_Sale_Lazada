@@ -319,29 +319,24 @@ with st.expander("➕ **Thêm sản phẩm mới & Xem trước phân loại**",
                 scraped = monitor.scraper.scrape_product_info(preview_url.strip())
                 if scraped.get("success") and scraped.get("title") and scraped.get("title") != "Access denied":
                     st.session_state.preview_data = {
-                        "url": preview_url.strip(),
+                        "url": scraped.get("url") or preview_url.strip(),
                         "title": scraped.get("title", ""),
                         "price": scraped.get("price", 0.0),
                         "variants": scraped.get("variants", [])
                     }
                     st.success("Đã tìm thấy thông tin sản phẩm!")
                 else:
-                    # Khi IP máy chủ Cloud bị WAF Lazada chặn tạm thời, không chặn đứng người dùng
-                    st.warning("⚠️ Lazada đang bật lớp bảo vệ chống bot (Access denied). Bạn vẫn có thể nhập tên và giá đáy để lưu theo dõi bên dưới:")
-                    st.session_state.preview_data = {
-                        "url": preview_url.strip(),
-                        "title": "Bàn Phím Cơ Custom AULA F108 / F108 Pro",
-                        "price": 0.0,
-                        "variants": []
-                    }
+                    st.session_state.preview_data = None
+                    err_msg = scraped.get('error') or "Không thể bóc tách giá từ link này hoặc link không hợp lệ"
+                    st.error(f"Lỗi: {err_msg}. Vui lòng kiểm tra lại URL sản phẩm!")
 
-    # Nếu có thông tin Preview hoặc người dùng muốn nhập thủ công khi bị chặn
+    # Nếu đã lấy thông tin thành công, hiển thị form chọn phân loại và đặt giá đáy
     p_info = st.session_state.preview_data
     if p_info:
         st.markdown("<hr style='margin: 0.8rem 0; border: none; border-top: 1px dashed #e5e7eb;'/>", unsafe_allow_html=True)
         
-        # Tiêu đề sản phẩm (cho phép chỉnh sửa nếu cần)
-        prod_title_val = st.text_input("📦 Tên sản phẩm:", value=p_info.get("title", ""))
+        # Tiêu đề sản phẩm
+        prod_title_val = st.text_input("📦 Tên sản phẩm:", value=p_info.get("title", ""), disabled=True)
         
         col_v1, col_v2 = st.columns([2, 1])
         with col_v1:
@@ -352,13 +347,14 @@ with st.expander("➕ **Thêm sản phẩm mới & Xem trước phân loại**",
                     help="Chọn đúng kích cỡ, màu sắc hoặc quy cách sản phẩm"
                 )
             else:
-                selected_variant = st.text_input("🎨 Tên phân loại (tùy chọn):", placeholder="Ví dụ: Bản Pro, Màu Đen...")
+                selected_variant = ""
+                st.caption("ℹ️ Sản phẩm này là bản tiêu chuẩn (không có nhiều phân loại SKU).")
 
         with col_v2:
             curr_p = p_info.get("price", 0.0)
             suggested_target = int(curr_p * 0.9) if curr_p > 0 else 100000
             target_price_input = st.number_input(
-                f"🎯 Giá đáy mong muốn (VNĐ):",
+                f"🎯 Giá đáy mong muốn (Giá hiện tại: {int(curr_p):,}đ):",
                 min_value=1000,
                 value=suggested_target,
                 step=10000,
@@ -378,6 +374,7 @@ with st.expander("➕ **Thêm sản phẩm mới & Xem trước phân loại**",
             )
             st.success(f"Đã lưu theo dõi thành công (ID: #{prod_id})!")
             st.session_state.preview_data = None
+            st.rerun()
             st.rerun()
 
 # 8. Bảng danh sách sản phẩm
