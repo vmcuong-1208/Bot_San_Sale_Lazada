@@ -30,7 +30,8 @@ def run_worker():
         print("👉 Vui lòng thêm SUPABASE_URL và SUPABASE_KEY vào file .env để kết nối chung với Web Cloud!")
 
     monitor = get_monitor_service(interval_seconds=SCAN_INTERVAL_SECONDS)
-    print(f"⏱️ Chu kỳ quét định kỳ: {SCAN_INTERVAL_SECONDS // 60} phút / lần.")
+    interval_display = f"{SCAN_INTERVAL_SECONDS} giây" if SCAN_INTERVAL_SECONDS < 60 else f"{SCAN_INTERVAL_SECONDS // 60} phút"
+    print(f"⏱️ Chu kỳ quét định kỳ: {interval_display} / lần.")
     print("💡 Worker đang chạy bằng IP mạng dân dụng tại nhà (Residential IP),")
     print("   giúp bóc tách giá 100% không bị chặn 'Access denied' bởi Lazada Cloudflare/WAF.")
     print("   Nhấn Ctrl+C để dừng worker.\n")
@@ -40,9 +41,9 @@ def run_worker():
         while True:
             monitor.scan_all_products()
             print(f"\n💤 Nghỉ {SCAN_INTERVAL_SECONDS} giây trước lượt quét tiếp theo...")
-            # Đếm ngược và cho phép Ctrl+C phản hồi ngay lập tức
-            for remaining in range(SCAN_INTERVAL_SECONDS, 0, -5):
-                time.sleep(5)
+            # Đếm ngược theo từng giây mượt mà
+            for remaining in range(SCAN_INTERVAL_SECONDS, 0, -1):
+                time.sleep(1)
                 sys.stdout.write(f"\r⏳ Chu kỳ quét tiếp theo sau: {remaining}s...   ")
                 sys.stdout.flush()
             print()

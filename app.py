@@ -284,10 +284,11 @@ with col_m3:
     """, unsafe_allow_html=True)
 
 with col_m4:
+    freq_display = f"{monitor.interval_seconds} giây" if monitor.interval_seconds < 60 else f"{monitor.interval_seconds // 60} phút"
     st.markdown(f"""
     <div class="metric-card">
         <div class="metric-label">Chu kỳ quét</div>
-        <div class="metric-value">{monitor.interval_seconds // 60}<span style="font-size: 1rem; font-weight: 500;"> phút</span></div>
+        <div class="metric-value">{freq_display}</div>
         <div class="metric-sub">{monitor.last_run_time}</div>
     </div>
     """, unsafe_allow_html=True)
