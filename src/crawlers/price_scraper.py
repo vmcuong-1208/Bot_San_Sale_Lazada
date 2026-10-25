@@ -33,27 +33,31 @@ class PriceScraper:
                     p2 = html.find(".html", p1)
                     if p2 != -1:
                         real_url = html[p1:p2 + 5]
-                        print(f"[SCRAPER] Đã chuyển đổi shortlink s.lazada sang link gốc: {real_url}")
+                        try:
+                            print(f"[SCRAPER] Resolved shortlink to: {real_url}")
+                        except Exception:
+                            pass
                         return real_url
                 m_can = re.search(r'<link\s+rel=[\'"]origin[\'"]\s+href=[\'"]([^\'"]+)[\'"]', html)
                 if m_can:
                     return m_can.group(1).split("?")[0]
             except Exception as e:
-                print(f"[WARN] Lỗi resolve shortlink: {e}")
+                try:
+                    print(f"[WARN] Error resolving shortlink: {e}")
+                except Exception:
+                    pass
         return url
 
     def _scrape_via_requests(self, url: str) -> Dict:
         """
         Phương pháp cào nhanh bằng requests:
-        - Sử dụng header mobile và cookies cơ bản để vượt qua tường lửa WAF của Lazada.
+        - Sử dụng User-Agent đối tác mạng xã hội (Facebook External Hit) để hoàn toàn bỏ qua WAF, Captcha và trang trừng phạt x5sec/RGV587 của Alibaba/Lazada.
+        - Trích xuất tiêu đề, giá tiền thực và danh sách đầy đủ tất cả phân loại hàng (SKUs).
         """
         headers = {
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'User-Agent': 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Accept-Language': 'vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'none',
         }
         r = requests.get(url, headers=headers, timeout=15)
         html = r.text
@@ -64,23 +68,32 @@ class PriceScraper:
             title = m_title.group(1).replace(" | Lazada Việt Nam", "").strip()
 
         price = 0.0
-        # Tìm giá tiền trong HTML
-        m_price = re.search(r'\"price\":\s*\"?(\d+(?:\.\d+)?)\"?', html)
-        if not m_price:
+        # 1. Thử bóc tách pdt_price (chuẩn SSR Lazada)
+        m_pdt = re.search(r'pdt_price[\x5c\x22\x27]*:\s*[\x5c\x22\x27]*([0-9.,]+)', html)
+        if m_pdt:
+            clean = m_pdt.group(1).replace('.', '').replace(',', '')
+            if clean.isdigit() and float(clean) >= 100:
+                price = float(clean)
+
+        # 2. Thử price hoặc salePrice trong JSON
+        if price == 0.0:
             m_price = re.search(r'\"salePrice\":\s*\"?(\d+(?:\.\d+)?)\"?', html)
-        if not m_price:
-            m_price = re.search(r'(\d{1,3}(?:\.\d{3})+)\s*₫', html)
+            if not m_price:
+                m_price = re.search(r'\"price\":\s*\"?(\d+(?:\.\d+)?)\"?', html)
             if m_price:
-                price = float(m_price.group(1).replace(".", ""))
-        else:
-            price = float(m_price.group(1))
+                price = float(m_price.group(1))
+
+        # 3. Thử tìm chuỗi giá tiền kèm ký tự tiền tệ
+        if price == 0.0:
+            m_curr = re.search(r'(\d{1,3}(?:\.\d{3})+)\s*₫', html)
+            if m_curr:
+                price = float(m_curr.group(1).replace(".", ""))
 
         # Trích xuất danh sách phân loại (SKUs) từ trường properties trong JSON SSR
         variants = []
         idx = html.find('"properties":')
         if idx != -1:
-            sub = html[idx:idx + 5000]
-            # Trích xuất các tên phân loại bên trong values
+            sub = html[idx:idx + 8000]
             v_matches = re.findall(r'\"name\":\s*\"([^\"]+)\"', sub)
             for v in v_matches:
                 v_clean = v.strip()
@@ -91,7 +104,7 @@ class PriceScraper:
             "title": title,
             "price": price,
             "variants": variants,
-            "success": bool(title and title != "Access denied")
+            "success": bool(title and title != "Access denied" and price > 0)
         }
 
     def scrape_product_info(self, url: str) -> Dict:
