@@ -25,7 +25,7 @@ class PriceScraper:
         """Tự động phân giải link rút gọn (như s.lazada.vn) sang link sản phẩm gốc."""
         if "s.lazada.vn" in url:
             try:
-                headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+                headers = {'User-Agent': 'curl/7.68.0'}
                 r = requests.get(url, headers=headers, timeout=10)
                 html = r.text
                 p1 = html.find("https://www.lazada.vn/products/")
@@ -35,7 +35,6 @@ class PriceScraper:
                         real_url = html[p1:p2 + 5]
                         print(f"[SCRAPER] Đã chuyển đổi shortlink s.lazada sang link gốc: {real_url}")
                         return real_url
-                # Nếu không tìm thấy bằng .find, tìm bằng regex canonical link
                 m_can = re.search(r'<link\s+rel=[\'"]origin[\'"]\s+href=[\'"]([^\'"]+)[\'"]', html)
                 if m_can:
                     return m_can.group(1).split("?")[0]
@@ -109,6 +108,7 @@ class PriceScraper:
             fast_res = self._scrape_via_requests(real_url)
             if fast_res["success"]:
                 return {
+                    "url": real_url,
                     "title": fast_res["title"],
                     "price": fast_res["price"],
                     "variants": fast_res["variants"],
@@ -121,6 +121,7 @@ class PriceScraper:
         # 3. Fallback: Dùng Playwright Headless với Stealth
         ensure_playwright_browsers()
         result = {
+            "url": real_url,
             "title": "",
             "price": 0.0,
             "variants": [],
