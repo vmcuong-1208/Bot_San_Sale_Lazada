@@ -72,12 +72,17 @@ pip install -r requirements.txt
 playwright install chromium
 ```
 
-### 2. Cấu hình Telegram Bot (`.env`)
-Điền thông tin trong file `.env`:
+### 2. Cấu hình Telegram Bot & Supabase (`.env`)
+Tạo file `.env` (tham khảo `.env.example`) và điền thông tin của bạn:
 ```env
-TELEGRAM_BOT_TOKEN=8855068856:AAFKCTr78HyVEvmJwxuZUJrcpuhHualp3qM
-TELEGRAM_CHAT_ID=6278288952
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
+TELEGRAM_CHAT_ID=your_telegram_chat_id_here
 DISCOUNT_THRESHOLD=30
+SCAN_INTERVAL_SECONDS=300
+
+# Cấu hình Supabase (PostgreSQL Cloud)
+SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_KEY=your-anon-key-here
 ```
 
 ### 3. Khởi chạy Web Dashboard

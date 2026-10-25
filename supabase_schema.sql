@@ -16,3 +16,4 @@ CREATE TABLE IF NOT EXISTS public.products (
 
 -- Tắt Row Level Security (RLS) để cho phép cả Web Streamlit và Worker đọc/ghi dữ liệu bằng Anon Key
 ALTER TABLE public.products DISABLE ROW LEVEL SECURITY;
+
