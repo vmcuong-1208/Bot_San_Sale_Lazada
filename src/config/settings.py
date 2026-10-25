@@ -27,7 +27,9 @@ TELEGRAM_BOT_TOKEN = get_secret("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = get_secret("TELEGRAM_CHAT_ID", "")
 
 # Cấu hình Supabase (PostgreSQL Cloud)
-SUPABASE_URL = get_secret("SUPABASE_URL", "")
+_raw_supabase_url = get_secret("SUPABASE_URL", "")
+# Tự động loại bỏ hậu tố /rest/v1 hoặc dấu gạch chéo cuối để tránh lỗi PGRST125
+SUPABASE_URL = _raw_supabase_url.split("/rest/v1")[0].rstrip("/") if _raw_supabase_url else ""
 SUPABASE_KEY = get_secret("SUPABASE_KEY", "")
 
 # Cấu hình lọc và quét giá
