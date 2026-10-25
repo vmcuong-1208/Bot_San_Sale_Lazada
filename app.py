@@ -294,55 +294,32 @@ with col_m4:
 
 st.write("")
 
-# 7. Form Thêm Sản Phẩm & Xem Trước Phân Loại (SaaS Inspo Card)
-with st.expander("➕ **Thêm sản phẩm mới & Xem trước phân loại**", expanded=(total_products == 0)):
-    if "preview_data" not in st.session_state:
-        st.session_state.preview_data = None
-
-    # Hàng nhập link + Nút Kiểm tra (Preview 🔍)
-    c_url, c_btn = st.columns([5, 1])
-    with c_url:
-        preview_url = st.text_input(
-            "Đường link sản phẩm (Lazada / Tmall / Taobao):",
-            placeholder="https://www.lazada.vn/products/...",
-            key="input_product_url",
-            label_visibility="collapsed"
+# 7. Form Thêm Sản Phẩm Mới (Thiết kế tinh gọn chuẩn Ponytail & SaaS)
+with st.expander("➕ **Thêm sản phẩm mới cần theo dõi**", expanded=(total_products == 0)):
+    with st.form("add_product_unified_form", clear_on_submit=True):
+        f_url = st.text_input(
+            "🔗 Link sản phẩm (Lazada / Tmall / Taobao):",
+            placeholder="https://s.lazada.vn/... hoặc https://www.lazada.vn/products/..."
         )
-    with c_btn:
-        btn_preview = st.button("🔍 Kiểm tra", type="primary", use_container_width=True, help="Tải nhanh tiêu đề, giá và danh sách phân loại của sản phẩm")
+        col_f1, col_f2 = st.columns([2, 1])
+        with col_f1:
+            f_title = st.text_input(
+                "📦 Ghi chú tên sản phẩm (tùy chọn):",
+                placeholder="Để trống Worker sẽ tự lấy tên thật trên sàn..."
+            )
+        with col_f2:
+            f_target = st.number_input(
+                "🎯 Giá đáy mong muốn (VNĐ):",
+                min_value=1000,
+                value=200000,
+                step=10000,
+                format="%d"
+            )
 
-    if btn_preview:
-        if not preview_url or not preview_url.startswith("http"):
-            st.error("Vui lòng nhập đường link URL hợp lệ!")
-        else:
-            with st.spinner("Đang kết nối và tải thông tin sản phẩm..."):
-                scraped = monitor.scraper.scrape_product_info(preview_url.strip())
-                if scraped.get("success") and scraped.get("title") and scraped.get("title") != "Access denied":
-                    st.session_state.preview_data = {
-                        "url": scraped.get("url") or preview_url.strip(),
-                        "title": scraped.get("title", ""),
-                        "price": scraped.get("price", 0.0),
-                        "variants": scraped.get("variants", [])
-                    }
-                    st.success("Đã tìm thấy thông tin sản phẩm!")
-                else:
-                    st.session_state.preview_data = None
-                    err_msg = scraped.get('error') or "Không thể bóc tách giá từ link này hoặc link không hợp lệ"
-                    st.error(f"Lỗi: {err_msg}. Vui lòng kiểm tra lại URL sản phẩm!")
-
-    # Nút Lưu trực tiếp sản phẩm vào Supabase (Không bắt buộc phải Preview thành công trên Cloud)
-    with st.form("manual_add_form", clear_on_submit=True):
-        st.markdown("##### 📌 **Nhập & Lưu theo dõi sản phẩm:**")
-        f_url = st.text_input("🔗 Link sản phẩm (Lazada / Tmall / Taobao):", value=preview_url if preview_url else "", placeholder="https://s.lazada.vn/... hoặc https://www.lazada.vn/products/...")
-        c_m1, c_m2 = st.columns([2, 1])
-        with c_m1:
-            f_title = st.text_input("📦 Tên hoặc ghi chú sản phẩm:", placeholder="Ví dụ: Máy cạo râu Enchen, Bàn phím cơ...")
-        with c_m2:
-            f_target = st.number_input("🎯 Giá đáy mong muốn (VNĐ):", min_value=1000, value=300000, step=10000, format="%d")
-
-        if st.form_submit_button("💾 Lưu vào danh sách theo dõi", type="primary", use_container_width=True):
+        btn_save = st.form_submit_button("💾 Lưu vào danh sách theo dõi", type="primary", use_container_width=True)
+        if btn_save:
             if not f_url or not f_url.startswith("http"):
-                st.error("Vui lòng nhập link URL hợp lệ!")
+                st.error("Vui lòng nhập đường link URL hợp lệ!")
             else:
                 final_title = f_title.strip() if f_title.strip() else "Sản phẩm mới (Đang chờ Worker quét)"
                 prod_id = db.add_product(
@@ -353,56 +330,7 @@ with st.expander("➕ **Thêm sản phẩm mới & Xem trước phân loại**",
                     variant_name=""
                 )
                 st.success(f"🎉 Đã lưu sản phẩm thành công vào Supabase (ID: #{prod_id})!")
-                st.info("Worker ở máy nhà sẽ tự động cào tên đầy đủ và cập nhật giá mới ngay trong lượt quét tiếp theo.")
-                st.session_state.preview_data = None
                 st.rerun()
-
-    # Nếu đã lấy thông tin thành công từ nút Preview, hiển thị bảng xem trước SKUs
-    p_info = st.session_state.preview_data
-    if p_info:
-        st.markdown("<hr style='margin: 0.8rem 0; border: none; border-top: 1px dashed #e5e7eb;'/>", unsafe_allow_html=True)
-        
-        # Tiêu đề sản phẩm
-        prod_title_val = st.text_input("📦 Tên sản phẩm:", value=p_info.get("title", ""), disabled=True)
-        
-        col_v1, col_v2 = st.columns([2, 1])
-        with col_v1:
-            if p_info.get("variants"):
-                selected_variant = st.selectbox(
-                    "🎨 Chọn phân loại cần theo dõi:",
-                    options=p_info["variants"],
-                    help="Chọn đúng kích cỡ, màu sắc hoặc quy cách sản phẩm"
-                )
-            else:
-                selected_variant = ""
-                st.caption("ℹ️ Sản phẩm này là bản tiêu chuẩn (không có nhiều phân loại SKU).")
-
-        with col_v2:
-            curr_p = p_info.get("price", 0.0)
-            suggested_target = int(curr_p * 0.9) if curr_p > 0 else 100000
-            target_price_input = st.number_input(
-                f"🎯 Giá đáy mong muốn (Giá hiện tại: {int(curr_p):,}đ):",
-                min_value=1000,
-                value=suggested_target,
-                step=10000,
-                format="%d"
-            )
-
-        if st.button("💾 Lưu theo dõi sản phẩm", type="primary", use_container_width=True):
-            final_title = prod_title_val or "Sản phẩm theo dõi"
-            if selected_variant and selected_variant not in final_title:
-                final_title += f" ({selected_variant})"
-            prod_id = db.add_product(
-                url=p_info["url"],
-                target_price=float(target_price_input),
-                title=final_title,
-                current_price=curr_p,
-                variant_name=selected_variant
-            )
-            st.success(f"Đã lưu theo dõi thành công (ID: #{prod_id})!")
-            st.session_state.preview_data = None
-            st.rerun()
-            st.rerun()
 
 # 8. Bảng danh sách sản phẩm
 col_tbl1, col_tbl2 = st.columns([3, 1])
