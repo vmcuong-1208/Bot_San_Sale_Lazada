@@ -40,7 +40,12 @@ def run_worker():
         while True:
             monitor.scan_all_products()
             print(f"\n💤 Nghỉ {SCAN_INTERVAL_SECONDS} giây trước lượt quét tiếp theo...")
-            time.sleep(SCAN_INTERVAL_SECONDS)
+            # Đếm ngược và cho phép Ctrl+C phản hồi ngay lập tức
+            for remaining in range(SCAN_INTERVAL_SECONDS, 0, -5):
+                time.sleep(5)
+                sys.stdout.write(f"\r⏳ Chu kỳ quét tiếp theo sau: {remaining}s...   ")
+                sys.stdout.flush()
+            print()
     except KeyboardInterrupt:
         print("\n🛑 Đã dừng Local Worker thành công.")
 

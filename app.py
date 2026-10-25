@@ -330,7 +330,34 @@ with st.expander("➕ **Thêm sản phẩm mới & Xem trước phân loại**",
                     err_msg = scraped.get('error') or "Không thể bóc tách giá từ link này hoặc link không hợp lệ"
                     st.error(f"Lỗi: {err_msg}. Vui lòng kiểm tra lại URL sản phẩm!")
 
-    # Nếu đã lấy thông tin thành công, hiển thị form chọn phân loại và đặt giá đáy
+    # Nút Lưu trực tiếp sản phẩm vào Supabase (Không bắt buộc phải Preview thành công trên Cloud)
+    with st.form("manual_add_form", clear_on_submit=True):
+        st.markdown("##### 📌 **Nhập & Lưu theo dõi sản phẩm:**")
+        f_url = st.text_input("🔗 Link sản phẩm (Lazada / Tmall / Taobao):", value=preview_url if preview_url else "", placeholder="https://s.lazada.vn/... hoặc https://www.lazada.vn/products/...")
+        c_m1, c_m2 = st.columns([2, 1])
+        with c_m1:
+            f_title = st.text_input("📦 Tên hoặc ghi chú sản phẩm:", placeholder="Ví dụ: Máy cạo râu Enchen, Bàn phím cơ...")
+        with c_m2:
+            f_target = st.number_input("🎯 Giá đáy mong muốn (VNĐ):", min_value=1000, value=300000, step=10000, format="%d")
+
+        if st.form_submit_button("💾 Lưu vào danh sách theo dõi", type="primary", use_container_width=True):
+            if not f_url or not f_url.startswith("http"):
+                st.error("Vui lòng nhập link URL hợp lệ!")
+            else:
+                final_title = f_title.strip() if f_title.strip() else "Sản phẩm mới (Đang chờ Worker quét)"
+                prod_id = db.add_product(
+                    url=f_url.strip(),
+                    target_price=float(f_target),
+                    title=final_title,
+                    current_price=0.0,
+                    variant_name=""
+                )
+                st.success(f"🎉 Đã lưu sản phẩm thành công vào Supabase (ID: #{prod_id})!")
+                st.info("Worker ở máy nhà sẽ tự động cào tên đầy đủ và cập nhật giá mới ngay trong lượt quét tiếp theo.")
+                st.session_state.preview_data = None
+                st.rerun()
+
+    # Nếu đã lấy thông tin thành công từ nút Preview, hiển thị bảng xem trước SKUs
     p_info = st.session_state.preview_data
     if p_info:
         st.markdown("<hr style='margin: 0.8rem 0; border: none; border-top: 1px dashed #e5e7eb;'/>", unsafe_allow_html=True)
