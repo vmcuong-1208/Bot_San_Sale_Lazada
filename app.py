@@ -333,6 +333,25 @@ with st.expander("➕ **Thêm sản phẩm mới cần theo dõi**", expanded=(t
                 format="%d"
             )
 
+        col_vc1, col_vc2 = st.columns(2)
+        with col_vc1:
+            f_disc_pct = st.number_input(
+                "🎟️ Mã giảm phần trăm trên App (% Tmall / Voucher sàn):",
+                min_value=0.0,
+                max_value=100.0,
+                value=0.0,
+                step=1.0,
+                help="Ví dụ: Voucher Tmall giảm 10% hoặc 12% trên App điện thoại"
+            )
+        with col_vc2:
+            f_disc_amt = st.number_input(
+                "💰 Mã giảm số tiền cố định (VNĐ):",
+                min_value=0,
+                value=0,
+                step=5000,
+                help="Ví dụ: Voucher 30.000đ hoặc 50.000đ khi thanh toán trên App"
+            )
+
         btn_save = st.form_submit_button("💾 Lưu vào danh sách theo dõi", type="primary", use_container_width=True)
         if btn_save:
             if not f_url or not f_url.startswith("http"):
@@ -344,7 +363,9 @@ with st.expander("➕ **Thêm sản phẩm mới cần theo dõi**", expanded=(t
                     target_price=float(f_target),
                     title=final_title,
                     current_price=0.0,
-                    variant_name=f_variant.strip()
+                    variant_name=f_variant.strip(),
+                    discount_amount=float(f_disc_amt),
+                    discount_percent=float(f_disc_pct)
                 )
                 st.success(f"🎉 Đã lưu sản phẩm thành công vào Supabase (ID: #{prod_id})!")
                 st.rerun()
@@ -378,21 +399,36 @@ else:
         c_price = p.get("current_price", 0)
         t_price = p.get("target_price", 0)
         l_price = p.get("lowest_price", 0)
+        d_amt = float(p.get("discount_amount") or 0)
+        d_pct = float(p.get("discount_percent") or 0)
+
+        # Ước tính giá trên App sau voucher
+        eff_price = c_price
+        vc_desc = []
+        if d_pct > 0:
+            eff_price = eff_price * (1.0 - (d_pct / 100.0))
+            vc_desc.append(f"-{d_pct:g}%")
+        if d_amt > 0:
+            eff_price = max(0.0, eff_price - d_amt)
+            vc_desc.append(f"-{int(d_amt):,}đ")
 
         curr_str = f"{int(c_price):,} ₫".replace(",", ".") if c_price > 0 else "Chưa quét"
+        app_est_str = f"{int(eff_price):,} ₫".replace(",", ".") if c_price > 0 else "Chưa quét"
         targ_str = f"{int(t_price):,} ₫".replace(",", ".")
         low_str = f"{int(l_price):,} ₫".replace(",", ".") if l_price > 0 else "Chưa có"
 
         diff_str = "—"
         if c_price > 0:
-            diff = c_price - t_price
+            diff = eff_price - t_price
             diff_str = f"+{int(diff):,} ₫".replace(",", ".") if diff > 0 else f"{int(diff):,} ₫".replace(",", ".")
 
         table_data.append({
             "ID": p["id"],
             "Sản phẩm": p["title"] or "Chưa cập nhật",
             "Phân loại": p.get("variant_name") or "Mặc định",
-            "Giá hiện tại": curr_str,
+            "Giá web gốc": curr_str,
+            "Giá App (Sau mã)": app_est_str,
+            "Mã áp dụng": " + ".join(vc_desc) if vc_desc else "Không có",
             "Giá đáy (Target)": targ_str,
             "Chênh lệch": diff_str,
             "Thấp nhất": low_str,
@@ -416,7 +452,7 @@ else:
         use_container_width=True
     )
 
-    # 9. Quản lý sản phẩm (Xóa / Chỉnh sửa giá đáy)
+    # 9. Quản lý sản phẩm (Xóa / Chỉnh sửa giá đáy & mã giảm giá)
     st.markdown("##### ⚙️ **Quản lý sản phẩm**")
     col_act1, col_act2, col_act3 = st.columns([2, 1, 1])
     product_options = {f"#{p['id']} - {p['title'][:35]}... ({int(p['target_price']):,}đ)": p["id"] for p in products}
@@ -424,14 +460,23 @@ else:
     with col_act1:
         selected_label = st.selectbox("Chọn sản phẩm cần chỉnh sửa:", list(product_options.keys()))
         selected_id = product_options[selected_label]
+        current_prod = db.get_product_by_id(selected_id)
 
     with col_act2:
-        current_prod = db.get_product_by_id(selected_id)
         current_target = int(current_prod["target_price"]) if current_prod else 100000
+        current_disc_pct = float(current_prod.get("discount_percent") or 0.0) if current_prod else 0.0
+        current_disc_amt = int(current_prod.get("discount_amount") or 0) if current_prod else 0
+
         new_target = st.number_input("Cập nhật lại Giá đáy (VNĐ):", min_value=1000, step=10000, value=current_target)
-        if st.button("💾 Cập nhật giá", use_container_width=True, type="secondary"):
-            db.update_target_price(selected_id, float(new_target))
-            st.success("Đã cập nhật giá đáy thành công!")
+        col_sub_v1, col_sub_v2 = st.columns(2)
+        with col_sub_v1:
+            new_pct = st.number_input("Sửa Voucher %:", min_value=0.0, max_value=100.0, value=current_disc_pct, step=1.0)
+        with col_sub_v2:
+            new_amt = st.number_input("Sửa Voucher VNĐ:", min_value=0, value=current_disc_amt, step=5000)
+
+        if st.button("💾 Cập nhật cấu hình", use_container_width=True, type="secondary"):
+            db.update_target_price(selected_id, float(new_target), float(new_amt), float(new_pct))
+            st.success("Đã cập nhật giá đáy và mã giảm giá thành công!")
             st.rerun()
 
     with col_act3:

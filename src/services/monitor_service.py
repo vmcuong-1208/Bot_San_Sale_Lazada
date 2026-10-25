@@ -71,20 +71,38 @@ class PriceMonitorService:
         new_title = scrape_res["title"] or title
         new_lowest = min(old_lowest, current_price) if old_lowest > 0 else current_price
 
-        # LOGIC CẢNH BÁO
-        if current_price <= target_price:
+        # TÍNH TOÁN GIÁ DỰ KIẾN TRÊN APP (SAU VOUCHER / MÃ GIẢM GIÁ)
+        discount_amount = float(product.get("discount_amount") or 0.0)
+        discount_percent = float(product.get("discount_percent") or 0.0)
+        effective_price = current_price
+        discount_desc = ""
+
+        if discount_percent > 0:
+            effective_price = effective_price * (1.0 - (discount_percent / 100.0))
+            discount_desc += f"-{discount_percent:g}%"
+        if discount_amount > 0:
+            effective_price = max(0.0, effective_price - discount_amount)
+            if discount_desc:
+                discount_desc += f" & -{int(discount_amount):,}đ"
+            else:
+                discount_desc = f"-{int(discount_amount):,}đ"
+
+        # LOGIC CẢNH BÁO DỰA TRÊN GIÁ SAU KHI ÁP VOUCHER
+        if effective_price <= target_price:
             status_text = "🎉 ĐẠT GIÁ ĐÁY!"
-            self.log(f"🔥 SẢN PHẨM #{product_id} ĐẠT GIÁ ĐÁY: {current_price:,.0f}đ <= {target_price:,.0f}đ")
+            self.log(f"🔥 SẢN PHẨM #{product_id} ĐẠT GIÁ ĐÁY: Thực tính {effective_price:,.0f}đ (Gốc: {current_price:,.0f}đ) <= {target_price:,.0f}đ")
             self.notifier.send_price_alert(
                 title=new_title,
                 current_price=current_price,
                 target_price=target_price,
                 lowest_price=new_lowest,
                 link=url,
-                alert_type="TOUCH_TARGET"
+                alert_type="TOUCH_TARGET",
+                effective_price=effective_price,
+                discount_desc=discount_desc
             )
         else:
-            diff = current_price - target_price
+            diff = effective_price - target_price
             if diff <= PRICE_DIFF_ALERT_THRESHOLD:
                 status_text = f"⚠️ Gần chạm đáy (+{int(diff):,}đ)"
                 self.log(f"🔔 SẢN PHẨM #{product_id} GẦN GIÁ ĐÁY: Chênh {diff:,.0f}đ <= {PRICE_DIFF_ALERT_THRESHOLD:,.0f}đ. Gửi Telegram.")
@@ -94,7 +112,9 @@ class PriceMonitorService:
                     target_price=target_price,
                     lowest_price=new_lowest,
                     link=url,
-                    alert_type="NEAR_TARGET"
+                    alert_type="NEAR_TARGET",
+                    effective_price=effective_price,
+                    discount_desc=discount_desc
                 )
             else:
                 status_text = f"Giá cao (+{int(diff):,}đ)"

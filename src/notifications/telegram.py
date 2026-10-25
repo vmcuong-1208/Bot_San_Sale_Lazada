@@ -75,31 +75,41 @@ class TelegramNotifier:
         target_price: float, 
         lowest_price: float, 
         link: str, 
-        alert_type: str = "TOUCH_TARGET"
+        alert_type: str = "TOUCH_TARGET",
+        effective_price: float = 0.0,
+        discount_desc: str = ""
     ) -> bool:
         """
         Gửi cảnh báo giá sản phẩm theo dõi:
-        - TOUCH_TARGET: current_price <= target_price
-        - NEAR_TARGET: current_price > target_price nhưng chênh lệch <= 300.000đ
+        - TOUCH_TARGET: giá thực tính <= target_price
+        - NEAR_TARGET: giá thực tính > target_price nhưng chênh lệch <= 300.000đ
         """
         safe_title = title.replace("<", "&lt;").replace(">", "&gt;")
+        display_check_price = effective_price if effective_price > 0 else current_price
         curr_str = f"{int(current_price):,} ₫".replace(",", ".")
+        eff_str = f"{int(display_check_price):,} ₫".replace(",", ".")
         target_str = f"{int(target_price):,} ₫".replace(",", ".")
         lowest_str = f"{int(lowest_price):,} ₫".replace(",", ".")
-        diff = current_price - target_price
+        diff = display_check_price - target_price
         diff_str = f"{int(abs(diff)):,} ₫".replace(",", ".")
 
         if alert_type == "TOUCH_TARGET":
             header = "🎯 <b>CHẠM GIÁ ĐÁY MỤC TIÊU!</b> 🎯"
-            note = f"🎉 Giá hiện tại đã <b>bằng hoặc thấp hơn</b> giá đáy mong muốn! Rẻ hơn: <b>-{diff_str}</b>"
+            note = f"🎉 Giá sau áp voucher đã <b>bằng hoặc thấp hơn</b> giá đáy mong muốn! Rẻ hơn: <b>-{diff_str}</b>"
         else:
             header = "⚠️ <b>CẢNH BÁO: GẦN CHẠM GIÁ ĐÁY!</b> ⚠️"
-            note = f"🔔 Giá hiện tại chỉ còn cách giá đáy <b>{diff_str}</b> (nhỏ hơn hoặc bằng 300.000 ₫)!"
+            note = f"🔔 Giá sau áp voucher chỉ còn cách giá đáy <b>{diff_str}</b> (≤ 300.000 ₫)!"
+
+        voucher_line = f"🎟️ <b>Mã giảm giá dự kiến:</b> <code>{discount_desc}</code>\n" if discount_desc else ""
+        price_line = f"💵 <b>Giá web gốc:</b> <code>{curr_str}</code>\n"
+        if discount_desc:
+            price_line += f"📱 <b>Giá ước tính trên App (Sau mã):</b> <code>{eff_str}</code>\n"
 
         message = (
             f"{header}\n\n"
             f"📦 <b>Sản phẩm:</b> {safe_title}\n"
-            f"💵 <b>Giá hiện tại:</b> <code>{curr_str}</code>\n"
+            f"{price_line}"
+            f"{voucher_line}"
             f"🎯 <b>Giá đáy đặt:</b> <code>{target_str}</code>\n"
             f"📉 <b>Thấp nhất lịch sử:</b> <code>{lowest_str}</code>\n\n"
             f"{note}\n\n"

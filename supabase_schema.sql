@@ -12,10 +12,16 @@ CREATE TABLE IF NOT EXISTS public.products (
     current_price NUMERIC DEFAULT 0,
     target_price NUMERIC NOT NULL,
     lowest_price NUMERIC DEFAULT 0,
+    discount_amount NUMERIC DEFAULT 0,
+    discount_percent NUMERIC DEFAULT 0,
     status TEXT DEFAULT 'Đang theo dõi',
     last_checked TEXT DEFAULT '',
     created_at TEXT DEFAULT ''
 );
+
+-- Tự động thêm các cột voucher nếu bảng đã tồn tại từ trước
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS discount_amount NUMERIC DEFAULT 0;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS discount_percent NUMERIC DEFAULT 0;
 
 -- 2. Tắt hoàn toàn RLS trên bảng products
 ALTER TABLE public.products DISABLE ROW LEVEL SECURITY;

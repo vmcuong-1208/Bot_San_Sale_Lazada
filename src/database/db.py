@@ -11,9 +11,15 @@ if SUPABASE_URL and SUPABASE_KEY and SUPABASE_URL != "your_supabase_url_here":
     try:
         from supabase import create_client
         _supabase_client = create_client(SUPABASE_URL, SUPABASE_KEY)
-        print("[DATABASE] Đang sử dụng cơ sở dữ liệu Supabase Cloud.")
+        try:
+            print("[DATABASE] Dang su dung co so du lieu Supabase Cloud.")
+        except Exception:
+            pass
     except Exception as e:
-        print(f"[DATABASE WARN] Không thể kết nối Supabase, fallback về SQLite: {e}")
+        try:
+            print(f"[DATABASE WARN] Fallback ve SQLite: {e}")
+        except Exception:
+            pass
 
 def is_using_supabase() -> bool:
     return _supabase_client is not None
@@ -38,15 +44,18 @@ def _init_sqlite():
             current_price REAL DEFAULT 0,
             target_price REAL NOT NULL,
             lowest_price REAL DEFAULT 0,
+            discount_amount REAL DEFAULT 0,
+            discount_percent REAL DEFAULT 0,
             status TEXT DEFAULT 'Đang theo dõi',
             last_checked TEXT,
             created_at TEXT
         )
     """)
-    try:
-        cursor.execute("ALTER TABLE products ADD COLUMN variant_name TEXT DEFAULT ''")
-    except Exception:
-        pass
+    for col in ["variant_name TEXT DEFAULT ''", "discount_amount REAL DEFAULT 0", "discount_percent REAL DEFAULT 0"]:
+        try:
+            cursor.execute(f"ALTER TABLE products ADD COLUMN {col}")
+        except Exception:
+            pass
     conn.commit()
     conn.close()
 
@@ -58,7 +67,15 @@ def init_db():
     if not is_using_supabase():
         _init_sqlite()
 
-def add_product(url: str, target_price: float, title: str = "", current_price: float = 0.0, variant_name: str = "") -> int:
+def add_product(
+    url: str, 
+    target_price: float, 
+    title: str = "", 
+    current_price: float = 0.0, 
+    variant_name: str = "",
+    discount_amount: float = 0.0,
+    discount_percent: float = 0.0
+) -> int:
     now_str = datetime.now(VN_TZ).strftime("%Y-%m-%d %H:%M:%S")
     lowest_price = current_price if current_price > 0 else target_price
 
@@ -71,6 +88,8 @@ def add_product(url: str, target_price: float, title: str = "", current_price: f
                 "title": title,
                 "variant_name": variant_name,
                 "target_price": target_price,
+                "discount_amount": discount_amount,
+                "discount_percent": discount_percent,
                 "status": "Đang theo dõi",
                 "last_checked": now_str
             }).eq("id", prod_id).execute()
@@ -83,6 +102,8 @@ def add_product(url: str, target_price: float, title: str = "", current_price: f
                 "current_price": current_price,
                 "target_price": target_price,
                 "lowest_price": lowest_price,
+                "discount_amount": discount_amount,
+                "discount_percent": discount_percent,
                 "status": "Đang theo dõi",
                 "last_checked": now_str,
                 "created_at": now_str
@@ -92,14 +113,16 @@ def add_product(url: str, target_price: float, title: str = "", current_price: f
         conn = _get_sqlite_conn()
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO products (url, title, variant_name, current_price, target_price, lowest_price, status, last_checked, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, 'Đang theo dõi', ?, ?)
+            INSERT INTO products (url, title, variant_name, current_price, target_price, lowest_price, discount_amount, discount_percent, status, last_checked, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Đang theo dõi', ?, ?)
             ON CONFLICT(url) DO UPDATE SET
                 title = excluded.title,
                 variant_name = excluded.variant_name,
                 target_price = excluded.target_price,
+                discount_amount = excluded.discount_amount,
+                discount_percent = excluded.discount_percent,
                 status = 'Đang theo dõi'
-        """, (url, title, variant_name, current_price, target_price, lowest_price, now_str, now_str))
+        """, (url, title, variant_name, current_price, target_price, lowest_price, discount_amount, discount_percent, now_str, now_str))
         prod_id = cursor.lastrowid
         conn.commit()
         conn.close()
@@ -160,13 +183,17 @@ def update_product_price(product_id: int, title: str, current_price: float, lowe
         conn.commit()
         conn.close()
 
-def update_target_price(product_id: int, target_price: float):
+def update_target_price(product_id: int, target_price: float, discount_amount: float = 0.0, discount_percent: float = 0.0):
     if is_using_supabase():
-        _supabase_client.table("products").update({"target_price": target_price}).eq("id", product_id).execute()
+        _supabase_client.table("products").update({
+            "target_price": target_price,
+            "discount_amount": discount_amount,
+            "discount_percent": discount_percent
+        }).eq("id", product_id).execute()
     else:
         conn = _get_sqlite_conn()
         cursor = conn.cursor()
-        cursor.execute("UPDATE products SET target_price = ? WHERE id = ?", (target_price, product_id))
+        cursor.execute("UPDATE products SET target_price = ?, discount_amount = ?, discount_percent = ? WHERE id = ?", (target_price, discount_amount, discount_percent, product_id))
         conn.commit()
         conn.close()
 
