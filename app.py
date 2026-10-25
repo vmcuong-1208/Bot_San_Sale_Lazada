@@ -172,6 +172,9 @@ st.markdown("""
 with st.sidebar:
     st.markdown("### ⚡ **Điều Khiển Hệ Thống**")
     
+    # Tùy chọn Tự động làm mới dữ liệu (Live Auto-refresh)
+    auto_refresh = st.toggle("⏱️ Tự động cập nhật Web (10s)", value=True, help="Tự động đồng bộ số liệu mới nhất từ Supabase Cloud mỗi 10 giây cùng nhịp với Worker")
+
     # Hiển thị trạng thái kết nối Database (Supabase vs SQLite)
     if db.is_using_supabase():
         st.markdown('<span class="badge badge-success">● Supabase Cloud DB</span>', unsafe_allow_html=True)
@@ -238,14 +241,22 @@ with st.sidebar:
             st.caption("Chưa có nhật ký hoạt động.")
 
 # 5. Header & Overview
-st.markdown("""
-<div class="saas-header">
-    <div>
-        <h1 class="saas-title">⚡ Price Tracker Dashboard</h1>
-        <div class="saas-subtitle">Giám sát và tự động cảnh báo biến động giá sàn Lazada / Tmall theo thời gian thực.</div>
+c_head1, c_head2 = st.columns([4, 1])
+with c_head1:
+    st.markdown("""
+    <div class="saas-header" style="border-bottom: none; margin-bottom: 0;">
+        <div>
+            <h1 class="saas-title">⚡ Price Tracker Dashboard</h1>
+            <div class="saas-subtitle">Giám sát và tự động cảnh báo biến động giá sàn Lazada / Tmall theo thời gian thực.</div>
+        </div>
     </div>
-</div>
-""", unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
+with c_head2:
+    st.write("")
+    if st.button("🔄 Làm mới bảng", type="secondary", use_container_width=True, help="Tải lại dữ liệu mới nhất từ Supabase Cloud mà không cần F5"):
+        st.rerun()
+
+st.markdown("<hr style='margin: 0.5rem 0 1.5rem 0; border: none; border-top: 1px solid #f1f3f5;'/>", unsafe_allow_html=True)
 
 # Lấy dữ liệu sản phẩm
 products = db.get_all_products()
@@ -400,8 +411,8 @@ else:
         use_container_width=True
     )
 
-    # 9. Thanh thao tác trên từng sản phẩm (Action Bar)
-    st.markdown("##### ⚙️ **Thao tác nhanh trên sản phẩm**")
+    # 9. Quản lý sản phẩm (Xóa / Chỉnh sửa giá đáy)
+    st.markdown("##### ⚙️ **Quản lý sản phẩm**")
     col_act1, col_act2, col_act3 = st.columns([2, 1, 1])
     product_options = {f"#{p['id']} - {p['title'][:35]}... ({int(p['target_price']):,}đ)": p["id"] for p in products}
 
@@ -421,16 +432,13 @@ else:
     with col_act3:
         st.write("")
         st.write("")
-        col_btn1, col_btn2 = st.columns(2)
-        with col_btn1:
-            if st.button("🔍 Quét lại", use_container_width=True, type="primary"):
-                with st.spinner("Đang lấy giá mới..."):
-                    p_data = db.get_product_by_id(selected_id)
-                    res = monitor.check_single_product(p_data)
-                st.success("Đã cập nhật!")
-                st.rerun()
-        with col_btn2:
-            if st.button("🗑️ Xoá", use_container_width=True, type="secondary"):
-                db.delete_product(selected_id)
-                st.warning("Đã xoá khỏi danh sách!")
-                st.rerun()
+        if st.button("🗑️ Xoá sản phẩm", use_container_width=True, type="secondary"):
+            db.delete_product(selected_id)
+            st.warning("Đã xoá khỏi danh sách!")
+            st.rerun()
+
+# 10. Tự động đồng bộ số liệu thời gian thực (Ponytail 1-line timer)
+if auto_refresh:
+    import time
+    time.sleep(10)
+    st.rerun()
