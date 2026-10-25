@@ -26,12 +26,16 @@ def get_secret(key: str, default: str = "") -> str:
 TELEGRAM_BOT_TOKEN = get_secret("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = get_secret("TELEGRAM_CHAT_ID", "")
 
+# Cấu hình Supabase (PostgreSQL Cloud)
+SUPABASE_URL = get_secret("SUPABASE_URL", "")
+SUPABASE_KEY = get_secret("SUPABASE_KEY", "")
+
 # Cấu hình lọc và quét giá
 DISCOUNT_THRESHOLD = int(get_secret("DISCOUNT_THRESHOLD", "30"))
 PRICE_DIFF_ALERT_THRESHOLD = float(get_secret("PRICE_DIFF_ALERT_THRESHOLD", "300000"))
 SCAN_INTERVAL_SECONDS = int(get_secret("SCAN_INTERVAL_SECONDS", "300"))
 
-# Đường dẫn Database SQLite
+# Đường dẫn Database SQLite (Local fallback khi chưa có Supabase)
 DATA_DIR = BASE_DIR / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH = DATA_DIR / "products.db"

@@ -1,5 +1,6 @@
 from src.database.db import (
     init_db,
+    is_using_supabase,
     add_product,
     get_all_products,
     get_product_by_id,
@@ -11,6 +12,7 @@ from src.database.db import (
 
 __all__ = [
     "init_db",
+    "is_using_supabase",
     "add_product",
     "get_all_products",
     "get_product_by_id",
@@ -19,4 +21,3 @@ __all__ = [
     "delete_product",
     "delete_invalid_products",
 ]
-

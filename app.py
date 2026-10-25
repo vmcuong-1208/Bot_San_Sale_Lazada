@@ -172,6 +172,16 @@ st.markdown("""
 with st.sidebar:
     st.markdown("### ⚡ **Điều Khiển Hệ Thống**")
     
+    # Hiển thị trạng thái kết nối Database (Supabase vs SQLite)
+    if db.is_using_supabase():
+        st.markdown('<span class="badge badge-success">● Supabase Cloud DB</span>', unsafe_allow_html=True)
+        st.caption("Đồng bộ Realtime giữa Web Cloud & Worker nhà.")
+    else:
+        st.markdown('<span class="badge badge-warning">● SQLite Cục Bộ</span>', unsafe_allow_html=True)
+        st.caption("Thêm SUPABASE_URL vào Secrets để bật Hybrid mode.")
+
+    st.markdown("<hr style='margin: 0.8rem 0; border: none; border-top: 1px solid #f1f3f5;'/>", unsafe_allow_html=True)
+
     # Telegram Status Pill
     is_tg_ok = notifier.is_configured()
     if is_tg_ok:

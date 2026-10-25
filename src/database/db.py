@@ -1,17 +1,33 @@
 import sqlite3
 from typing import List, Dict, Optional
 from datetime import datetime, timezone, timedelta
-from src.config.settings import DB_PATH
+from src.config.settings import DB_PATH, SUPABASE_URL, SUPABASE_KEY
 
 VN_TZ = timezone(timedelta(hours=7))
 
-def get_connection():
+# Khởi tạo Supabase client nếu đã được cấu hình
+_supabase_client = None
+if SUPABASE_URL and SUPABASE_KEY and SUPABASE_URL != "your_supabase_url_here":
+    try:
+        from supabase import create_client
+        _supabase_client = create_client(SUPABASE_URL, SUPABASE_KEY)
+        print("[DATABASE] Đang sử dụng cơ sở dữ liệu Supabase Cloud.")
+    except Exception as e:
+        print(f"[DATABASE WARN] Không thể kết nối Supabase, fallback về SQLite: {e}")
+
+def is_using_supabase() -> bool:
+    return _supabase_client is not None
+
+# ============================================================
+# CÁC HÀM XỬ LÝ CHO SQLITE (FALLBACK CỤC BỘ)
+# ============================================================
+def _get_sqlite_conn():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
-def init_db():
-    conn = get_connection()
+def _init_sqlite():
+    conn = _get_sqlite_conn()
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS products (
@@ -27,87 +43,154 @@ def init_db():
             created_at TEXT
         )
     """)
-    # Migration an toàn: Tự động bổ sung cột variant_name nếu database cũ chưa có
     try:
         cursor.execute("ALTER TABLE products ADD COLUMN variant_name TEXT DEFAULT ''")
     except Exception:
-        pass  # Cột đã tồn tại, bỏ qua an toàn
+        pass
     conn.commit()
     conn.close()
+
+# ============================================================
+# GIAO DIỆN DATABASE THỐNG NHẤT (HYBRID ADAPTER)
+# ============================================================
+def init_db():
+    """Khởi tạo database: Nếu dùng SQLite thì tạo bảng; Supabase đã có schema PostgreSQL."""
+    if not is_using_supabase():
+        _init_sqlite()
 
 def add_product(url: str, target_price: float, title: str = "", current_price: float = 0.0, variant_name: str = "") -> int:
-    conn = get_connection()
-    cursor = conn.cursor()
     now_str = datetime.now(VN_TZ).strftime("%Y-%m-%d %H:%M:%S")
     lowest_price = current_price if current_price > 0 else target_price
-    cursor.execute("""
-        INSERT INTO products (url, title, variant_name, current_price, target_price, lowest_price, status, last_checked, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, 'Đang theo dõi', ?, ?)
-        ON CONFLICT(url) DO UPDATE SET
-            title = excluded.title,
-            variant_name = excluded.variant_name,
-            target_price = excluded.target_price,
-            status = 'Đang theo dõi'
-    """, (url, title, variant_name, current_price, target_price, lowest_price, now_str, now_str))
-    product_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
-    return product_id
+
+    if is_using_supabase():
+        # Kiểm tra xem sản phẩm đã có trong Supabase chưa (qua URL)
+        res = _supabase_client.table("products").select("id").eq("url", url).execute()
+        if res.data:
+            prod_id = res.data[0]["id"]
+            _supabase_client.table("products").update({
+                "title": title,
+                "variant_name": variant_name,
+                "target_price": target_price,
+                "status": "Đang theo dõi",
+                "last_checked": now_str
+            }).eq("id", prod_id).execute()
+            return prod_id
+        else:
+            insert_res = _supabase_client.table("products").insert({
+                "url": url,
+                "title": title,
+                "variant_name": variant_name,
+                "current_price": current_price,
+                "target_price": target_price,
+                "lowest_price": lowest_price,
+                "status": "Đang theo dõi",
+                "last_checked": now_str,
+                "created_at": now_str
+            }).execute()
+            return insert_res.data[0]["id"]
+    else:
+        conn = _get_sqlite_conn()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO products (url, title, variant_name, current_price, target_price, lowest_price, status, last_checked, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, 'Đang theo dõi', ?, ?)
+            ON CONFLICT(url) DO UPDATE SET
+                title = excluded.title,
+                variant_name = excluded.variant_name,
+                target_price = excluded.target_price,
+                status = 'Đang theo dõi'
+        """, (url, title, variant_name, current_price, target_price, lowest_price, now_str, now_str))
+        prod_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        return prod_id
 
 def get_all_products() -> List[Dict]:
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM products ORDER BY id DESC")
-    rows = cursor.fetchall()
-    results = [dict(row) for row in rows]
-    conn.close()
-    return results
+    if is_using_supabase():
+        res = _supabase_client.table("products").select("*").order("id", desc=True).execute()
+        return res.data or []
+    else:
+        conn = _get_sqlite_conn()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM products ORDER BY id DESC")
+        rows = cursor.fetchall()
+        results = [dict(row) for row in rows]
+        conn.close()
+        return results
 
 def get_product_by_id(product_id: int) -> Optional[Dict]:
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM products WHERE id = ?", (product_id,))
-    row = cursor.fetchone()
-    conn.close()
-    return dict(row) if row else None
+    if is_using_supabase():
+        res = _supabase_client.table("products").select("*").eq("id", product_id).execute()
+        return res.data[0] if res.data else None
+    else:
+        conn = _get_sqlite_conn()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM products WHERE id = ?", (product_id,))
+        row = cursor.fetchone()
+        conn.close()
+        return dict(row) if row else None
 
 def update_product_price(product_id: int, title: str, current_price: float, lowest_price: float, status: str):
-    conn = get_connection()
-    cursor = conn.cursor()
     now_str = datetime.now(VN_TZ).strftime("%Y-%m-%d %H:%M:%S")
-    cursor.execute("""
-        UPDATE products
-        SET title = COALESCE(NULLIF(?, ''), title),
-            current_price = ?,
-            lowest_price = ?,
-            status = ?,
-            last_checked = ?
-        WHERE id = ?
-    """, (title, current_price, lowest_price, status, now_str, product_id))
-    conn.commit()
-    conn.close()
+    if is_using_supabase():
+        payload = {
+            "current_price": current_price,
+            "lowest_price": lowest_price,
+            "status": status,
+            "last_checked": now_str
+        }
+        if title:
+            payload["title"] = title
+        _supabase_client.table("products").update(payload).eq("id", product_id).execute()
+    else:
+        conn = _get_sqlite_conn()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE products
+            SET title = COALESCE(NULLIF(?, ''), title),
+                current_price = ?,
+                lowest_price = ?,
+                status = ?,
+                last_checked = ?
+            WHERE id = ?
+        """, (title, current_price, lowest_price, status, now_str, product_id))
+        conn.commit()
+        conn.close()
 
 def update_target_price(product_id: int, target_price: float):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("UPDATE products SET target_price = ? WHERE id = ?", (target_price, product_id))
-    conn.commit()
-    conn.close()
+    if is_using_supabase():
+        _supabase_client.table("products").update({"target_price": target_price}).eq("id", product_id).execute()
+    else:
+        conn = _get_sqlite_conn()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE products SET target_price = ? WHERE id = ?", (target_price, product_id))
+        conn.commit()
+        conn.close()
 
 def delete_product(product_id: int):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM products WHERE id = ?", (product_id,))
-    conn.commit()
-    conn.close()
+    if is_using_supabase():
+        _supabase_client.table("products").delete().eq("id", product_id).execute()
+    else:
+        conn = _get_sqlite_conn()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM products WHERE id = ?", (product_id,))
+        conn.commit()
+        conn.close()
 
 def delete_invalid_products() -> int:
     """Xóa tất cả các sản phẩm có trạng thái lỗi link hoặc lỗi cào giá."""
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM products WHERE status LIKE '%Lỗi%'")
-    deleted_count = cursor.rowcount
-    conn.commit()
-    conn.close()
-    return deleted_count
-
+    if is_using_supabase():
+        # Lấy danh sách sản phẩm lỗi
+        res = _supabase_client.table("products").select("id").ilike("status", "%Lỗi%").execute()
+        ids = [item["id"] for item in (res.data or [])]
+        if ids:
+            _supabase_client.table("products").delete().in_("id", ids).execute()
+        return len(ids)
+    else:
+        conn = _get_sqlite_conn()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM products WHERE status LIKE '%Lỗi%'")
+        deleted_count = cursor.rowcount
+        conn.commit()
+        conn.close()
+        return deleted_count
