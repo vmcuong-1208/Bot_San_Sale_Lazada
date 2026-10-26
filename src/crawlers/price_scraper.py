@@ -116,8 +116,8 @@ class PriceScraper:
                 vid = prop_path.split(":")[-1]
                 sku_to_prop[sku_id] = prop_map.get(vid, vid)
 
-        # B3: Trích xuất giá chi tiết từng SKU từ skuInfos
-        sku_prices = {}
+        # B3: Trích xuất giá chi tiết và trạng thái còn/hết hàng từng SKU từ skuInfos
+        sku_details = {}
         idx_infos = html.find('"skuInfos":')
         if idx_infos != -1:
             sub_infos = html[idx_infos:idx_infos + 100000]
@@ -141,18 +141,27 @@ class PriceScraper:
                     clean_p = re.sub(r'[^\d]', '', m_pdt_sku.group(1))
                     if clean_p: s_price = float(clean_p)
 
-                if s_price > 0:
-                    sku_prices[sid] = s_price
+                # Kiểm tra trạng thái tồn kho (hết hàng: disable=true, inStock=false, stock=0)
+                is_disabled = bool(re.search(r'\"disable\"\s*:\s*true', c))
+                is_out_of_stock = bool(re.search(r'\"inStock\"\s*:\s*false', c) or re.search(r'\"stock\"\s*:\s*0\b', c))
+                in_stock = not (is_disabled or is_out_of_stock)
 
-        # Tập hợp danh sách variants đầy đủ: [{"name": ..., "price": ..., "sku_id": ...}]
+                if s_price > 0:
+                    sku_details[sid] = {
+                        "price": s_price,
+                        "in_stock": in_stock
+                    }
+
+        # Tập hợp danh sách variants đầy đủ: [{"name": ..., "price": ..., "sku_id": ..., "in_stock": ...}]
         variants_data = []
-        if sku_prices:
-            for sid, s_price in sku_prices.items():
+        if sku_details:
+            for sid, detail in sku_details.items():
                 v_name = sku_to_prop.get(sid, f"Phân loại #{sid}")
                 variants_data.append({
                     "name": v_name,
-                    "price": s_price,
-                    "sku_id": sid
+                    "price": detail["price"],
+                    "sku_id": sid,
+                    "in_stock": detail["in_stock"]
                 })
 
         # Danh sách tên phân loại đơn giản

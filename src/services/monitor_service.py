@@ -79,10 +79,13 @@ class PriceMonitorService:
         
         # Nếu có phân loại mong muốn trong variants_data, lấy đúng giá phân loại đó
         matched_sku_price = None
+        is_chosen_out_of_stock = False
         if chosen_variant and variants_data:
             for v in variants_data:
                 if chosen_variant.lower() in v["name"].lower() or v["name"].lower() in chosen_variant.lower():
                     matched_sku_price = v["price"]
+                    if v.get("in_stock") is False:
+                        is_chosen_out_of_stock = True
                     break
 
         current_price = matched_sku_price if matched_sku_price else scrape_res["price"]
@@ -105,8 +108,11 @@ class PriceMonitorService:
             else:
                 discount_desc = f"-{int(discount_amount):,}đ"
 
-        # LOGIC CẢNH BÁO DỰA TRÊN GIÁ SAU KHI ÁP VOUCHER
-        if effective_price <= target_price:
+        # LOGIC CẢNH BÁO DỰA TRÊN GIÁ SAU KHI ÁP VOUCHER & TỒN KHO
+        if is_chosen_out_of_stock:
+            status_text = "🚫 Phân loại hết hàng"
+            self.log(f"⚠️ SẢN PHẨM #{product_id}: Phân loại '{chosen_variant}' hiện đang TẠM HẾT HÀNG.")
+        elif effective_price <= target_price:
             status_text = "🎉 ĐẠT GIÁ ĐÁY!"
             self.log(f"🔥 SẢN PHẨM #{product_id} ĐẠT GIÁ ĐÁY: Thực tính {effective_price:,.0f}đ (Gốc: {current_price:,.0f}đ) <= {target_price:,.0f}đ")
             self.notifier.send_price_alert(

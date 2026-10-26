@@ -490,6 +490,7 @@ else:
                 sku_rows = []
                 for sku in sel_skus:
                     s_orig = float(sku.get("price") or 0)
+                    s_in_stock = sku.get("in_stock", True)
                     s_eff = s_orig
                     if d_pct_s > 0:
                         s_eff = s_eff * (1.0 - (d_pct_s / 100.0))
@@ -498,15 +499,24 @@ else:
 
                     s_diff = s_eff - t_price_s
                     s_diff_str = f"+{int(s_diff):,} ₫".replace(",", ".") if s_diff > 0 else f"{int(s_diff):,} ₫".replace(",", ".")
-                    s_status = "🟢 Đạt giá đáy" if s_eff <= t_price_s else ("🟡 Gần đáy" if s_diff <= 300000 else "⚪ Giá cao")
+                    
+                    if not s_in_stock:
+                        s_status = "🔴 Tạm hết hàng"
+                    elif s_eff <= t_price_s:
+                        s_status = "🟢 Đạt giá đáy"
+                    elif s_diff <= 300000:
+                        s_status = "🟡 Gần đáy"
+                    else:
+                        s_status = "⚪ Giá cao"
 
                     sku_rows.append({
                         "SKU ID": sku.get("sku_id", ""),
                         "Tên phân loại (Màu sắc / Switch / Option)": sku.get("name", ""),
+                        "Tình trạng": "✅ Còn hàng" if s_in_stock else "❌ Hết hàng",
                         "Giá web niêm yết": f"{int(s_orig):,} ₫".replace(",", "."),
                         "Giá App (Sau voucher)": f"{int(s_eff):,} ₫".replace(",", "."),
                         "So với giá đáy": s_diff_str,
-                        "Đánh giá": s_status
+                        "Đánh giá săn sale": s_status
                     })
                 
                 df_skus = pd.DataFrame(sku_rows)
