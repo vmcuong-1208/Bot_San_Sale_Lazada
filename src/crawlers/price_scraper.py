@@ -89,22 +89,90 @@ class PriceScraper:
             if m_curr:
                 price = float(m_curr.group(1).replace(".", ""))
 
-        # Trích xuất danh sách phân loại (SKUs) từ trường properties trong JSON SSR
-        variants = []
-        idx = html.find('"properties":')
-        if idx != -1:
-            sub = html[idx:idx + 8000]
-            v_matches = re.findall(r'\"name\":\s*\"([^\"]+)\"', sub)
-            for v in v_matches:
-                v_clean = v.strip()
-                if v_clean and v_clean not in ["Màu sắc", "Nhóm màu", "Size", "Kích cỡ", "Phân loại"] and v_clean not in variants:
-                    variants.append(v_clean)
+        # 4. Trích xuất chi tiết TẤT CẢ phân loại kèm giá riêng từng SKU
+        # B1: Map vid -> tên phân loại từ skuBase
+        prop_map = {}
+        idx_base = html.find('"skuBase":')
+        if idx_base != -1:
+            sub_base = html[idx_base:idx_base + 30000]
+            vals = re.findall(r'\"name\":\s*\"([^\"]+)\"[^}]*?\"vid\":\s*\"([^\"]+)\"', sub_base)
+            for name, vid in vals:
+                prop_map[vid] = name
+            vals2 = re.findall(r'\"vid\":\s*\"([^\"]+)\"[^}]*?\"name\":\s*\"([^\"]+)\"', sub_base)
+            for vid, name in vals2:
+                prop_map[vid] = name
+
+        # B2: Map skuId -> tên phân loại
+        sku_to_prop = {}
+        idx_skus = html.find('"skus":')
+        if idx_skus != -1:
+            sub_skus = html[idx_skus:idx_skus + 40000]
+            sku_matches = re.findall(r'\"propPath\":\s*\"([^\"]+)\"[^}]*?\"skuId\":\s*\"([^\"]+)\"', sub_skus)
+            for prop_path, sku_id in sku_matches:
+                vid = prop_path.split(":")[-1]
+                sku_to_prop[sku_id] = prop_map.get(vid, vid)
+            sku_matches2 = re.findall(r'\"skuId\":\s*\"([^\"]+)\"[^}]*?\"propPath\":\s*\"([^\"]+)\"', sub_skus)
+            for sku_id, prop_path in sku_matches2:
+                vid = prop_path.split(":")[-1]
+                sku_to_prop[sku_id] = prop_map.get(vid, vid)
+
+        # B3: Trích xuất giá chi tiết từng SKU từ skuInfos
+        sku_prices = {}
+        idx_infos = html.find('"skuInfos":')
+        if idx_infos != -1:
+            sub_infos = html[idx_infos:idx_infos + 100000]
+            blocks = re.split(r'\"skuId\":\s*\"(\d+)\"', sub_infos)
+            for i in range(1, len(blocks), 2):
+                sid = blocks[i]
+                c = blocks[i+1]
+                m_sale = re.search(r'\"salePrice\":\s*\{[^}]*?\"value\":\s*(\d+)', c)
+                m_orig = re.search(r'\"originalPrice\":\s*\{[^}]*?\"value\":\s*(\d+)', c)
+                m_coupon = re.search(r'\"coupon\":\s*\{[^}]*?\"priceNumber\":\s*(\d+)', c)
+                m_pdt_sku = re.search(r'\"pdt_price\":\s*\"([^\"]+)\"', c)
+
+                s_price = 0.0
+                if m_coupon:
+                    s_price = float(m_coupon.group(1))
+                elif m_sale:
+                    s_price = float(m_sale.group(1))
+                elif m_orig:
+                    s_price = float(m_orig.group(1))
+                elif m_pdt_sku:
+                    clean_p = re.sub(r'[^\d]', '', m_pdt_sku.group(1))
+                    if clean_p: s_price = float(clean_p)
+
+                if s_price > 0:
+                    sku_prices[sid] = s_price
+
+        # Tập hợp danh sách variants đầy đủ: [{"name": ..., "price": ..., "sku_id": ...}]
+        variants_data = []
+        if sku_prices:
+            for sid, s_price in sku_prices.items():
+                v_name = sku_to_prop.get(sid, f"Phân loại #{sid}")
+                variants_data.append({
+                    "name": v_name,
+                    "price": s_price,
+                    "sku_id": sid
+                })
+
+        # Danh sách tên phân loại đơn giản
+        variant_names = [v["name"] for v in variants_data] if variants_data else list(prop_map.values())
+        if not variant_names:
+            idx = html.find('"properties":')
+            if idx != -1:
+                sub = html[idx:idx + 8000]
+                v_matches = re.findall(r'\"name\":\s*\"([^\"]+)\"', sub)
+                for v in v_matches:
+                    v_clean = v.strip()
+                    if v_clean and v_clean not in ["Màu sắc", "Nhóm màu", "Size", "Kích cỡ", "Phân loại"] and v_clean not in variant_names:
+                        variant_names.append(v_clean)
 
         return {
             "title": title,
             "price": price,
-            "variants": variants,
-            "success": bool(title and title != "Access denied" and price > 0)
+            "variants": variant_names,
+            "variants_data": variants_data,
+            "success": bool(title and title != "Access denied" and (price > 0 or len(variants_data) > 0))
         }
 
     def scrape_product_info(self, url: str) -> Dict:
@@ -125,6 +193,7 @@ class PriceScraper:
                     "title": fast_res["title"],
                     "price": fast_res["price"],
                     "variants": fast_res["variants"],
+                    "variants_data": fast_res.get("variants_data", []),
                     "success": True,
                     "error": None
                 }
@@ -138,6 +207,7 @@ class PriceScraper:
             "title": "",
             "price": 0.0,
             "variants": [],
+            "variants_data": [],
             "success": False,
             "error": None
         }

@@ -46,12 +46,18 @@ def _init_sqlite():
             lowest_price REAL DEFAULT 0,
             discount_amount REAL DEFAULT 0,
             discount_percent REAL DEFAULT 0,
+            variants_json TEXT DEFAULT '[]',
             status TEXT DEFAULT 'Đang theo dõi',
             last_checked TEXT,
             created_at TEXT
         )
     """)
-    for col in ["variant_name TEXT DEFAULT ''", "discount_amount REAL DEFAULT 0", "discount_percent REAL DEFAULT 0"]:
+    for col in [
+        "variant_name TEXT DEFAULT ''", 
+        "discount_amount REAL DEFAULT 0", 
+        "discount_percent REAL DEFAULT 0",
+        "variants_json TEXT DEFAULT '[]'"
+    ]:
         try:
             cursor.execute(f"ALTER TABLE products ADD COLUMN {col}")
         except Exception:
@@ -153,7 +159,16 @@ def get_product_by_id(product_id: int) -> Optional[Dict]:
         conn.close()
         return dict(row) if row else None
 
-def update_product_price(product_id: int, title: str, current_price: float, lowest_price: float, status: str, variant_name: str = ""):
+def update_product_price(
+    product_id: int, 
+    title: str, 
+    current_price: float, 
+    lowest_price: float, 
+    status: str, 
+    variant_name: str = "",
+    variants_json: Optional[List[Dict]] = None
+):
+    import json
     now_str = datetime.now(VN_TZ).strftime("%Y-%m-%d %H:%M:%S")
     if is_using_supabase():
         payload = {
@@ -166,10 +181,21 @@ def update_product_price(product_id: int, title: str, current_price: float, lowe
             payload["title"] = title
         if variant_name:
             payload["variant_name"] = variant_name
-        _supabase_client.table("products").update(payload).eq("id", product_id).execute()
+        if variants_json is not None:
+            payload["variants_json"] = variants_json
+        try:
+            _supabase_client.table("products").update(payload).eq("id", product_id).execute()
+        except Exception as e:
+            # Nếu Supabase chưa chạy SQL thêm cột variants_json, fallback cập nhật các trường cơ bản
+            if "variants_json" in str(e):
+                payload.pop("variants_json", None)
+                _supabase_client.table("products").update(payload).eq("id", product_id).execute()
+            else:
+                raise e
     else:
         conn = _get_sqlite_conn()
         cursor = conn.cursor()
+        v_json_str = json.dumps(variants_json, ensure_ascii=False) if variants_json is not None else None
         cursor.execute("""
             UPDATE products
             SET title = COALESCE(NULLIF(?, ''), title),
@@ -177,9 +203,10 @@ def update_product_price(product_id: int, title: str, current_price: float, lowe
                 current_price = ?,
                 lowest_price = ?,
                 status = ?,
-                last_checked = ?
+                last_checked = ?,
+                variants_json = COALESCE(?, variants_json)
             WHERE id = ?
-        """, (title, variant_name, variant_name, current_price, lowest_price, status, now_str, product_id))
+        """, (title, variant_name, variant_name, current_price, lowest_price, status, now_str, v_json_str, product_id))
         conn.commit()
         conn.close()
 

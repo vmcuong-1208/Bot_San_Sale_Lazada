@@ -422,10 +422,20 @@ else:
             diff = eff_price - t_price
             diff_str = f"+{int(diff):,} ₫".replace(",", ".") if diff > 0 else f"{int(diff):,} ₫".replace(",", ".")
 
+        # Đếm số phân loại đã bóc tách được
+        v_list = p.get("variants_json") or []
+        if isinstance(v_list, str):
+            try:
+                import json
+                v_list = json.loads(v_list)
+            except Exception:
+                v_list = []
+        v_count_str = f" ({len(v_list)} phân loại)" if v_list else ""
+
         table_data.append({
             "ID": p["id"],
             "Sản phẩm": p["title"] or "Chưa cập nhật",
-            "Phân loại": p.get("variant_name") or "Mặc định",
+            "Phân loại đang theo dõi": (p.get("variant_name") or "Mặc định") + v_count_str,
             "Giá web gốc": curr_str,
             "Giá App (Sau mã)": app_est_str,
             "Mã áp dụng": " + ".join(vc_desc) if vc_desc else "Không có",
@@ -444,7 +454,7 @@ else:
         column_config={
             "URL": st.column_config.LinkColumn("Link mua hàng", display_text="Truy cập"),
             "Sản phẩm": st.column_config.TextColumn(width="medium"),
-            "Phân loại": st.column_config.TextColumn(width="small"),
+            "Phân loại đang theo dõi": st.column_config.TextColumn(width="medium"),
             "Trạng thái": st.column_config.TextColumn(width="small"),
             "Chênh lệch": st.column_config.TextColumn(width="small"),
         },
@@ -452,8 +462,58 @@ else:
         use_container_width=True
     )
 
-    # 9. Quản lý sản phẩm (Xóa / Chỉnh sửa giá đáy & mã giảm giá)
-    st.markdown("##### ⚙️ **Quản lý sản phẩm**")
+    # 9. Khám phá & So sánh giá tất cả phân loại (Inspo / Ponytail Nested Explorer)
+    products_with_variants = []
+    for p in products:
+        v_raw = p.get("variants_json")
+        if isinstance(v_raw, str):
+            try:
+                import json
+                v_raw = json.loads(v_raw)
+            except Exception:
+                v_raw = []
+        if v_raw and len(v_raw) > 0:
+            products_with_variants.append((p, v_raw))
+
+    if products_with_variants:
+        with st.expander("🔍 **Bảng So Sánh Giá Toàn Bộ Phân Loại Chi Tiết (Tất cả SKUs trong link)**", expanded=False):
+            st.markdown("Chọn sản phẩm bạn muốn tra cứu danh sách giá của tất cả các phiên bản/màu sắc:")
+            sku_options = {f"#{p['id']} - {p['title'][:40]}... ({len(v_list)} phân loại)": (p, v_list) for p, v_list in products_with_variants}
+            chosen_sku_prod = st.selectbox("Xem chi tiết bảng giá phân loại của sản phẩm:", list(sku_options.keys()), key="sku_explorer_select")
+            
+            if chosen_sku_prod:
+                sel_p, sel_skus = sku_options[chosen_sku_prod]
+                d_amt_s = float(sel_p.get("discount_amount") or 0)
+                d_pct_s = float(sel_p.get("discount_percent") or 0)
+                t_price_s = float(sel_p.get("target_price") or 0)
+
+                sku_rows = []
+                for sku in sel_skus:
+                    s_orig = float(sku.get("price") or 0)
+                    s_eff = s_orig
+                    if d_pct_s > 0:
+                        s_eff = s_eff * (1.0 - (d_pct_s / 100.0))
+                    if d_amt_s > 0:
+                        s_eff = max(0.0, s_eff - d_amt_s)
+
+                    s_diff = s_eff - t_price_s
+                    s_diff_str = f"+{int(s_diff):,} ₫".replace(",", ".") if s_diff > 0 else f"{int(s_diff):,} ₫".replace(",", ".")
+                    s_status = "🟢 Đạt giá đáy" if s_eff <= t_price_s else ("🟡 Gần đáy" if s_diff <= 300000 else "⚪ Giá cao")
+
+                    sku_rows.append({
+                        "SKU ID": sku.get("sku_id", ""),
+                        "Tên phân loại (Màu sắc / Switch / Option)": sku.get("name", ""),
+                        "Giá web niêm yết": f"{int(s_orig):,} ₫".replace(",", "."),
+                        "Giá App (Sau voucher)": f"{int(s_eff):,} ₫".replace(",", "."),
+                        "So với giá đáy": s_diff_str,
+                        "Đánh giá": s_status
+                    })
+                
+                df_skus = pd.DataFrame(sku_rows)
+                st.dataframe(df_skus, use_container_width=True, hide_index=True)
+
+    # 10. Quản lý sản phẩm (Xóa / Chỉnh sửa giá đáy & mã giảm giá & Chọn phân loại cụ thể)
+    st.markdown("##### ⚙️ **Quản lý sản phẩm & Đổi phân loại theo dõi**")
     col_act1, col_act2, col_act3 = st.columns([2, 1, 1])
     product_options = {f"#{p['id']} - {p['title'][:35]}... ({int(p['target_price']):,}đ)": p["id"] for p in products}
 

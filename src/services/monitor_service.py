@@ -28,7 +28,13 @@ class PriceMonitorService:
     def log(self, message: str):
         timestamp = get_vn_time_str("%H:%M:%S")
         entry = f"[{timestamp}] {message}"
-        print(entry)
+        try:
+            print(entry)
+        except Exception:
+            try:
+                print(entry.encode("ascii", "replace").decode("ascii"))
+            except Exception:
+                pass
         self.scan_logs.append(entry)
         if len(self.scan_logs) > 50:
             self.scan_logs.pop(0)
@@ -67,7 +73,19 @@ class PriceMonitorService:
             )
             return {"status": "error", "message": scrape_res.get("error")}
 
-        current_price = scrape_res["price"]
+        # Xác định giá cần theo dõi: Nếu người dùng đã chọn phân loại cụ thể, ưu tiên giá của phân loại đó
+        variants_data = scrape_res.get("variants_data", [])
+        chosen_variant = product.get("variant_name") or ""
+        
+        # Nếu có phân loại mong muốn trong variants_data, lấy đúng giá phân loại đó
+        matched_sku_price = None
+        if chosen_variant and variants_data:
+            for v in variants_data:
+                if chosen_variant.lower() in v["name"].lower() or v["name"].lower() in chosen_variant.lower():
+                    matched_sku_price = v["price"]
+                    break
+
+        current_price = matched_sku_price if matched_sku_price else scrape_res["price"]
         new_title = scrape_res["title"] or title
         new_lowest = min(old_lowest, current_price) if old_lowest > 0 else current_price
 
@@ -121,10 +139,9 @@ class PriceMonitorService:
                 self.log(f"ℹ️ SẢN PHẨM #{product_id}: Chênh {diff:,.0f}đ > {PRICE_DIFF_ALERT_THRESHOLD:,.0f}đ. Bỏ qua.")
 
         # Cập nhật phân loại: nếu người dùng chưa chọn phân loại cụ thể và sản phẩm có phân loại
-        detected_variant = product.get("variant_name") or ""
+        detected_variant = chosen_variant
         if not detected_variant and scrape_res.get("variants"):
-            # Ghép tóm tắt các phân loại phát hiện được
-            detected_variant = ", ".join(scrape_res["variants"][:3])
+            detected_variant = ", ".join(scrape_res["variants"][:2])
 
         db.update_product_price(
             product_id=product_id,
@@ -132,7 +149,8 @@ class PriceMonitorService:
             current_price=current_price,
             lowest_price=new_lowest,
             status=status_text,
-            variant_name=detected_variant
+            variant_name=detected_variant,
+            variants_json=variants_data if variants_data else None
         )
         return {
             "status": "success",
