@@ -68,26 +68,31 @@ class PriceScraper:
             title = m_title.group(1).replace(" | Lazada Việt Nam", "").strip()
 
         price = 0.0
-        # 1. Thử bóc tách pdt_price (chuẩn SSR Lazada)
-        m_pdt = re.search(r'pdt_price[\x5c\x22\x27]*:\s*[\x5c\x22\x27]*([0-9.,]+)', html)
-        if m_pdt:
-            clean = m_pdt.group(1).replace('.', '').replace(',', '')
-            if clean.isdigit() and float(clean) >= 100:
-                price = float(clean)
+        # 1. Thử bóc tách giá sale thực tế từ JSON (salePrice hoặc coupon price)
+        m_sale = re.search(r'\"salePrice\":\s*\{[^}]*?\"value\":\s*(\d+)', html)
+        if m_sale:
+            price = float(m_sale.group(1))
 
-        # 2. Thử price hoặc salePrice trong JSON
         if price == 0.0:
-            m_price = re.search(r'\"salePrice\":\s*\"?(\d+(?:\.\d+)?)\"?', html)
-            if not m_price:
-                m_price = re.search(r'\"price\":\s*\"?(\d+(?:\.\d+)?)\"?', html)
-            if m_price:
-                price = float(m_price.group(1))
+            m_price_num = re.search(r'\"salePrice\":\s*\"?(\d+(?:\.\d+)?)\"?', html)
+            if not m_price_num:
+                m_price_num = re.search(r'\"price\":\s*\"?(\d+(?:\.\d+)?)\"?', html)
+            if m_price_num:
+                price = float(m_price_num.group(1))
 
-        # 3. Thử tìm chuỗi giá tiền kèm ký tự tiền tệ
+        # 2. Thử bóc tách chuỗi giá có ký hiệu tiền tệ ₫ (giá hiển thị trực tiếp cho người mua)
         if price == 0.0:
             m_curr = re.search(r'(\d{1,3}(?:\.\d{3})+)\s*₫', html)
             if m_curr:
                 price = float(m_curr.group(1).replace(".", ""))
+
+        # 3. Fallback sang pdt_price (nếu không có giá sale)
+        if price == 0.0:
+            m_pdt = re.search(r'pdt_price[\x5c\x22\x27]*:\s*[\x5c\x22\x27]*([0-9.,]+)', html)
+            if m_pdt:
+                clean = m_pdt.group(1).replace('.', '').replace(',', '')
+                if clean.isdigit() and float(clean) >= 100:
+                    price = float(clean)
 
         # 4. Trích xuất chi tiết TẤT CẢ phân loại kèm giá riêng từng SKU
         # B1: Map vid -> tên phân loại từ skuBase
@@ -163,6 +168,11 @@ class PriceScraper:
                     "sku_id": sid,
                     "in_stock": detail["in_stock"]
                 })
+            # Nếu chưa có giá hoặc giá mặc định quá cao, cập nhật price bằng giá thấp nhất của các phân loại còn hàng
+            if price == 0.0 or price > 1000000:
+                available_prices = [d["price"] for d in sku_details.values() if d["price"] > 0]
+                if available_prices:
+                    price = min(available_prices)
 
         # Danh sách tên phân loại đơn giản
         variant_names = [v["name"] for v in variants_data] if variants_data else list(prop_map.values())
