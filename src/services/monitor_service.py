@@ -74,7 +74,24 @@ class PriceMonitorService:
             return {"status": "error", "message": scrape_res.get("error")}
 
         # Xác định giá cần theo dõi: Nếu người dùng đã chọn phân loại cụ thể, ưu tiên giá của phân loại đó
+        # Tải danh sách phân loại hiện tại trong database để bảo lưu trạng thái tồn kho người dùng đã cấu hình
+        db_variants = product.get("variants_json") or []
+        if isinstance(db_variants, str):
+            try:
+                import json
+                db_variants = json.loads(db_variants)
+            except Exception:
+                db_variants = []
+
+        stock_overrides = {str(item.get("sku_id")): item.get("in_stock") for item in db_variants if "in_stock" in item}
+
         variants_data = scrape_res.get("variants_data", [])
+        # Bảo lưu cài đặt in_stock nếu người dùng đã tùy chỉnh trên Web
+        for v in variants_data:
+            sid = str(v.get("sku_id"))
+            if sid in stock_overrides:
+                v["in_stock"] = stock_overrides[sid]
+
         chosen_variant = product.get("variant_name") or ""
         
         # Nếu có phân loại mong muốn trong variants_data, lấy đúng giá phân loại đó

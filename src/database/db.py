@@ -210,6 +210,22 @@ def update_product_price(
         conn.commit()
         conn.close()
 
+def update_product_variants_json(product_id: int, variants_json: List[Dict]):
+    """Cập nhật trạng thái thủ công của danh sách phân loại (ví dụ: đánh dấu hết hàng)."""
+    import json
+    if is_using_supabase():
+        try:
+            _supabase_client.table("products").update({"variants_json": variants_json}).eq("id", product_id).execute()
+        except Exception as e:
+            print(f"[DB WARN] Không thể lưu variants_json lên Supabase: {e}")
+    else:
+        conn = _get_sqlite_conn()
+        cursor = conn.cursor()
+        v_json_str = json.dumps(variants_json, ensure_ascii=False)
+        cursor.execute("UPDATE products SET variants_json = ? WHERE id = ?", (v_json_str, product_id))
+        conn.commit()
+        conn.close()
+
 def update_target_price(product_id: int, target_price: float, discount_amount: float = 0.0, discount_percent: float = 0.0):
     if is_using_supabase():
         _supabase_client.table("products").update({

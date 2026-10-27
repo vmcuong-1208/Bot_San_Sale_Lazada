@@ -512,7 +512,7 @@ else:
                     sku_rows.append({
                         "SKU ID": sku.get("sku_id", ""),
                         "Tên phân loại (Màu sắc / Switch / Option)": sku.get("name", ""),
-                        "Tình trạng": "✅ Còn hàng" if s_in_stock else "❌ Hết hàng",
+                        "Tình trạng": "✅ Còn hàng" if s_in_stock else "❌ Hết hàng (Đã ẩn)",
                         "Giá web niêm yết": f"{int(s_orig):,} ₫".replace(",", "."),
                         "Giá App (Sau voucher)": f"{int(s_eff):,} ₫".replace(",", "."),
                         "So với giá đáy": s_diff_str,
@@ -521,6 +521,27 @@ else:
                 
                 df_skus = pd.DataFrame(sku_rows)
                 st.dataframe(df_skus, use_container_width=True, hide_index=True)
+
+                # Bộ điều khiển Trạng thái Phân loại (Đánh dấu Hết hàng / Mở lại Còn hàng)
+                st.write("")
+                col_ctrl_t1, col_ctrl_t2 = st.columns([2, 1])
+                with col_ctrl_t1:
+                    sku_name_options = {f"[{'✅' if sku.get('in_stock', True) else '❌'}] {sku.get('name', '')} ({int(sku.get('price', 0)):,}đ)": idx_s for idx_s, sku in enumerate(sel_skus)}
+                    chosen_sku_idx = st.selectbox("Chọn phân loại cần đổi trạng thái Tồn kho:", list(sku_name_options.keys()), key="select_sku_stock_toggle")
+                    target_sku_idx = sku_name_options[chosen_sku_idx]
+                    target_sku = sel_skus[target_sku_idx]
+                
+                with col_ctrl_t2:
+                    st.write("")
+                    st.write("")
+                    is_currently_in_stock = target_sku.get("in_stock", True)
+                    btn_label = "🚫 Đánh dấu Hết hàng" if is_currently_in_stock else "✅ Đánh dấu Còn hàng"
+                    btn_type = "secondary" if is_currently_in_stock else "primary"
+                    if st.button(btn_label, use_container_width=True, type=btn_type, key="btn_toggle_sku_stock"):
+                        sel_skus[target_sku_idx]["in_stock"] = not is_currently_in_stock
+                        db.update_product_variants_json(sel_p["id"], sel_skus)
+                        st.success(f"Đã cập nhật trạng thái '{target_sku.get('name')}' thành: {'Còn hàng' if not is_currently_in_stock else 'Hết hàng'}!")
+                        st.rerun()
 
     # 10. Quản lý sản phẩm (Xóa / Chỉnh sửa giá đáy & mã giảm giá & Chọn phân loại cụ thể)
     st.markdown("##### ⚙️ **Quản lý sản phẩm & Đổi phân loại theo dõi**")
