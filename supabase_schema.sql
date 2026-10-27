@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS public.products (
     lowest_price NUMERIC DEFAULT 0,
     discount_amount NUMERIC DEFAULT 0,
     discount_percent NUMERIC DEFAULT 0,
+    alert_threshold NUMERIC DEFAULT 300000,
     variants_json JSONB DEFAULT '[]'::jsonb,
     status TEXT DEFAULT 'Đang theo dõi',
     last_checked TEXT DEFAULT '',
@@ -23,6 +24,7 @@ CREATE TABLE IF NOT EXISTS public.products (
 -- Tự động thêm các cột mới nếu bảng đã tồn tại từ trước
 ALTER TABLE public.products ADD COLUMN IF NOT EXISTS discount_amount NUMERIC DEFAULT 0;
 ALTER TABLE public.products ADD COLUMN IF NOT EXISTS discount_percent NUMERIC DEFAULT 0;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS alert_threshold NUMERIC DEFAULT 300000;
 ALTER TABLE public.products ADD COLUMN IF NOT EXISTS variants_json JSONB DEFAULT '[]'::jsonb;
 
 -- 2. Tắt hoàn toàn RLS trên bảng products

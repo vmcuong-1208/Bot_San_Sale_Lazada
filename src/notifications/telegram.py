@@ -98,7 +98,7 @@ class TelegramNotifier:
             note = f"🎉 Giá sau áp voucher đã <b>bằng hoặc thấp hơn</b> giá đáy mong muốn! Rẻ hơn: <b>-{diff_str}</b>"
         else:
             header = "⚠️ <b>CẢNH BÁO: GẦN CHẠM GIÁ ĐÁY!</b> ⚠️"
-            note = f"🔔 Giá sau áp voucher chỉ còn cách giá đáy <b>{diff_str}</b> (≤ 300.000 ₫)!"
+            note = f"🔔 Giá sau áp voucher chỉ còn cách giá đáy <b>{diff_str}</b> (đạt ngưỡng chênh lệch bạn cài đặt)!"
 
         voucher_line = f"🎟️ <b>Mã giảm giá dự kiến:</b> <code>{discount_desc}</code>\n" if discount_desc else ""
         price_line = f"💵 <b>Giá web gốc:</b> <code>{curr_str}</code>\n"

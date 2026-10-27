@@ -46,6 +46,7 @@ def _init_sqlite():
             lowest_price REAL DEFAULT 0,
             discount_amount REAL DEFAULT 0,
             discount_percent REAL DEFAULT 0,
+            alert_threshold REAL DEFAULT 300000,
             variants_json TEXT DEFAULT '[]',
             status TEXT DEFAULT 'Đang theo dõi',
             last_checked TEXT,
@@ -56,6 +57,7 @@ def _init_sqlite():
         "variant_name TEXT DEFAULT ''", 
         "discount_amount REAL DEFAULT 0", 
         "discount_percent REAL DEFAULT 0",
+        "alert_threshold REAL DEFAULT 300000",
         "variants_json TEXT DEFAULT '[]'"
     ]:
         try:
@@ -80,7 +82,8 @@ def add_product(
     current_price: float = 0.0, 
     variant_name: str = "",
     discount_amount: float = 0.0,
-    discount_percent: float = 0.0
+    discount_percent: float = 0.0,
+    alert_threshold: float = 300000.0
 ) -> int:
     now_str = datetime.now(VN_TZ).strftime("%Y-%m-%d %H:%M:%S")
     lowest_price = current_price if current_price > 0 else target_price
@@ -90,18 +93,27 @@ def add_product(
         res = _supabase_client.table("products").select("id").eq("url", url).execute()
         if res.data:
             prod_id = res.data[0]["id"]
-            _supabase_client.table("products").update({
+            update_data = {
                 "title": title,
                 "variant_name": variant_name,
                 "target_price": target_price,
                 "discount_amount": discount_amount,
                 "discount_percent": discount_percent,
+                "alert_threshold": alert_threshold,
                 "status": "Đang theo dõi",
                 "last_checked": now_str
-            }).eq("id", prod_id).execute()
+            }
+            try:
+                _supabase_client.table("products").update(update_data).eq("id", prod_id).execute()
+            except Exception as e:
+                if "alert_threshold" in str(e):
+                    update_data.pop("alert_threshold", None)
+                    _supabase_client.table("products").update(update_data).eq("id", prod_id).execute()
+                else:
+                    raise e
             return prod_id
         else:
-            insert_res = _supabase_client.table("products").insert({
+            insert_data = {
                 "url": url,
                 "title": title,
                 "variant_name": variant_name,
@@ -110,25 +122,35 @@ def add_product(
                 "lowest_price": lowest_price,
                 "discount_amount": discount_amount,
                 "discount_percent": discount_percent,
+                "alert_threshold": alert_threshold,
                 "status": "Đang theo dõi",
                 "last_checked": now_str,
                 "created_at": now_str
-            }).execute()
+            }
+            try:
+                insert_res = _supabase_client.table("products").insert(insert_data).execute()
+            except Exception as e:
+                if "alert_threshold" in str(e):
+                    insert_data.pop("alert_threshold", None)
+                    insert_res = _supabase_client.table("products").insert(insert_data).execute()
+                else:
+                    raise e
             return insert_res.data[0]["id"]
     else:
         conn = _get_sqlite_conn()
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO products (url, title, variant_name, current_price, target_price, lowest_price, discount_amount, discount_percent, status, last_checked, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Đang theo dõi', ?, ?)
+            INSERT INTO products (url, title, variant_name, current_price, target_price, lowest_price, discount_amount, discount_percent, alert_threshold, status, last_checked, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Đang theo dõi', ?, ?)
             ON CONFLICT(url) DO UPDATE SET
                 title = excluded.title,
                 variant_name = excluded.variant_name,
                 target_price = excluded.target_price,
                 discount_amount = excluded.discount_amount,
                 discount_percent = excluded.discount_percent,
+                alert_threshold = excluded.alert_threshold,
                 status = 'Đang theo dõi'
-        """, (url, title, variant_name, current_price, target_price, lowest_price, discount_amount, discount_percent, now_str, now_str))
+        """, (url, title, variant_name, current_price, target_price, lowest_price, discount_amount, discount_percent, alert_threshold, now_str, now_str))
         prod_id = cursor.lastrowid
         conn.commit()
         conn.close()
@@ -226,17 +248,36 @@ def update_product_variants_json(product_id: int, variants_json: List[Dict]):
         conn.commit()
         conn.close()
 
-def update_target_price(product_id: int, target_price: float, discount_amount: float = 0.0, discount_percent: float = 0.0):
+def update_target_price(
+    product_id: int, 
+    target_price: float, 
+    discount_amount: float = 0.0, 
+    discount_percent: float = 0.0,
+    alert_threshold: float = 300000.0
+):
     if is_using_supabase():
-        _supabase_client.table("products").update({
+        payload = {
             "target_price": target_price,
             "discount_amount": discount_amount,
-            "discount_percent": discount_percent
-        }).eq("id", product_id).execute()
+            "discount_percent": discount_percent,
+            "alert_threshold": alert_threshold
+        }
+        try:
+            _supabase_client.table("products").update(payload).eq("id", product_id).execute()
+        except Exception as e:
+            if "alert_threshold" in str(e):
+                payload.pop("alert_threshold", None)
+                _supabase_client.table("products").update(payload).eq("id", product_id).execute()
+            else:
+                raise e
     else:
         conn = _get_sqlite_conn()
         cursor = conn.cursor()
-        cursor.execute("UPDATE products SET target_price = ?, discount_amount = ?, discount_percent = ? WHERE id = ?", (target_price, discount_amount, discount_percent, product_id))
+        cursor.execute("""
+            UPDATE products 
+            SET target_price = ?, discount_amount = ?, discount_percent = ?, alert_threshold = ? 
+            WHERE id = ?
+        """, (target_price, discount_amount, discount_percent, alert_threshold, product_id))
         conn.commit()
         conn.close()
 

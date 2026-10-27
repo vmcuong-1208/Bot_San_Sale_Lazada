@@ -125,6 +125,9 @@ class PriceMonitorService:
             else:
                 discount_desc = f"-{int(discount_amount):,}đ"
 
+        # Lấy ngưỡng chênh lệch cài đặt riêng cho sản phẩm (hoặc mặc định PRICE_DIFF_ALERT_THRESHOLD)
+        prod_threshold = float(product.get("alert_threshold") or PRICE_DIFF_ALERT_THRESHOLD)
+
         # LOGIC CẢNH BÁO DỰA TRÊN GIÁ SAU KHI ÁP VOUCHER & TỒN KHO
         if is_chosen_out_of_stock:
             status_text = "🚫 Phân loại hết hàng"
@@ -144,9 +147,9 @@ class PriceMonitorService:
             )
         else:
             diff = effective_price - target_price
-            if diff <= PRICE_DIFF_ALERT_THRESHOLD:
+            if diff <= prod_threshold:
                 status_text = f"⚠️ Gần chạm đáy (+{int(diff):,}đ)"
-                self.log(f"🔔 SẢN PHẨM #{product_id} GẦN GIÁ ĐÁY: Chênh {diff:,.0f}đ <= {PRICE_DIFF_ALERT_THRESHOLD:,.0f}đ. Gửi Telegram.")
+                self.log(f"🔔 SẢN PHẨM #{product_id} GẦN GIÁ ĐÁY: Chênh {diff:,.0f}đ <= {prod_threshold:,.0f}đ. Gửi Telegram.")
                 self.notifier.send_price_alert(
                     title=new_title,
                     current_price=current_price,
@@ -159,7 +162,7 @@ class PriceMonitorService:
                 )
             else:
                 status_text = f"Giá cao (+{int(diff):,}đ)"
-                self.log(f"ℹ️ SẢN PHẨM #{product_id}: Chênh {diff:,.0f}đ > {PRICE_DIFF_ALERT_THRESHOLD:,.0f}đ. Bỏ qua.")
+                self.log(f"ℹ️ SẢN PHẨM #{product_id}: Chênh {diff:,.0f}đ > {prod_threshold:,.0f}đ. Bỏ qua.")
 
         # Cập nhật phân loại: nếu người dùng chưa chọn phân loại cụ thể và sản phẩm có phân loại
         detected_variant = chosen_variant

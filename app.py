@@ -333,10 +333,10 @@ with st.expander("➕ **Thêm sản phẩm mới cần theo dõi**", expanded=(t
                 format="%d"
             )
 
-        col_vc1, col_vc2 = st.columns(2)
+        col_vc1, col_vc2, col_vc3 = st.columns([1, 1, 1])
         with col_vc1:
             f_disc_pct = st.number_input(
-                "🎟️ Mã giảm phần trăm trên App (% Tmall / Voucher sàn):",
+                "🎟️ Mã giảm % (App / Voucher):",
                 min_value=0.0,
                 max_value=100.0,
                 value=0.0,
@@ -350,6 +350,14 @@ with st.expander("➕ **Thêm sản phẩm mới cần theo dõi**", expanded=(t
                 value=0,
                 step=5000,
                 help="Ví dụ: Voucher 30.000đ hoặc 50.000đ khi thanh toán trên App"
+            )
+        with col_vc3:
+            f_threshold = st.number_input(
+                "⚠️ Ngưỡng chênh lệch báo gần đáy (VNĐ):",
+                min_value=1000,
+                value=300000,
+                step=10000,
+                help="Tự chỉnh khoảng cách so với giá đáy để Bot bắn Telegram cảnh báo (mặc định 300.000đ)"
             )
 
         btn_save = st.form_submit_button("💾 Lưu vào danh sách theo dõi", type="primary", use_container_width=True)
@@ -365,7 +373,8 @@ with st.expander("➕ **Thêm sản phẩm mới cần theo dõi**", expanded=(t
                     current_price=0.0,
                     variant_name=f_variant.strip(),
                     discount_amount=float(f_disc_amt),
-                    discount_percent=float(f_disc_pct)
+                    discount_percent=float(f_disc_pct),
+                    alert_threshold=float(f_threshold)
                 )
                 st.success(f"🎉 Đã lưu sản phẩm thành công vào Supabase (ID: #{prod_id})!")
                 st.rerun()
@@ -441,6 +450,7 @@ else:
             "Mã áp dụng": " + ".join(vc_desc) if vc_desc else "Không có",
             "Giá đáy (Target)": targ_str,
             "Chênh lệch": diff_str,
+            "Ngưỡng báo (≤)": f"{int(p.get('alert_threshold') or 300000):,} ₫".replace(",", "."),
             "Thấp nhất": low_str,
             "Trạng thái": format_badge_status(p["status"]),
             "Lần cập nhật": p["last_checked"] or "Chưa cập nhật",
@@ -557,17 +567,20 @@ else:
         current_target = int(current_prod["target_price"]) if current_prod else 100000
         current_disc_pct = float(current_prod.get("discount_percent") or 0.0) if current_prod else 0.0
         current_disc_amt = int(current_prod.get("discount_amount") or 0) if current_prod else 0
+        current_thresh = int(current_prod.get("alert_threshold") or 300000) if current_prod else 300000
 
         new_target = st.number_input("Cập nhật lại Giá đáy (VNĐ):", min_value=1000, step=10000, value=current_target)
-        col_sub_v1, col_sub_v2 = st.columns(2)
+        col_sub_v1, col_sub_v2, col_sub_v3 = st.columns(3)
         with col_sub_v1:
             new_pct = st.number_input("Sửa Voucher %:", min_value=0.0, max_value=100.0, value=current_disc_pct, step=1.0)
         with col_sub_v2:
             new_amt = st.number_input("Sửa Voucher VNĐ:", min_value=0, value=current_disc_amt, step=5000)
+        with col_sub_v3:
+            new_thresh = st.number_input("Ngưỡng chênh lệch (VNĐ):", min_value=1000, value=current_thresh, step=10000)
 
         if st.button("💾 Cập nhật cấu hình", use_container_width=True, type="secondary"):
-            db.update_target_price(selected_id, float(new_target), float(new_amt), float(new_pct))
-            st.success("Đã cập nhật giá đáy và mã giảm giá thành công!")
+            db.update_target_price(selected_id, float(new_target), float(new_amt), float(new_pct), float(new_thresh))
+            st.success("Đã cập nhật giá đáy, mã giảm giá và ngưỡng chênh lệch thành công!")
             st.rerun()
 
     with col_act3:
